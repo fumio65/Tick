@@ -32,8 +32,13 @@ fun AppNavGraph(
             )
         }
         composable(Screen.AddTask.route) {
-            // TODO: Implement AddTaskScreen
+            AddTaskScreen(
+                viewModel = taskViewModel,
+                onSave = { navController.popBackStack() },
+                onCancel = { navController.popBackStack() }
+            )
         }
+
         composable(Screen.EditTask.route) { backStackEntry ->
             val taskId = backStackEntry.arguments?.getString("taskId")?.toIntOrNull()
             // TODO: Implement EditTaskScreen (using taskId)
