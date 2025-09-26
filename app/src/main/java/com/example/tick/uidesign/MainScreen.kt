@@ -12,6 +12,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.tick.viewmodel.TaskViewModel
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+
 
 
 enum class TaskFilter { ALL, COMPLETED, PENDING }
@@ -21,10 +24,11 @@ enum class TaskFilter { ALL, COMPLETED, PENDING }
 fun MainScreen(
     viewModel: TaskViewModel,
     onAddTaskClick: () -> Unit,
-    onEditTaskClick: (Int) -> Unit
+    onEditTaskClick: (Int) -> Unit,
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit
 ) {
     val tasks = viewModel.tasks.collectAsState()
-
     var filter by remember { mutableStateOf(TaskFilter.ALL) }
     var showMenu by remember { mutableStateOf(false) }
 
@@ -39,6 +43,12 @@ fun MainScreen(
             TopAppBar(
                 title = { Text("Tick") },
                 actions = {
+                    IconButton(onClick = onToggleTheme) {
+                        Icon(
+                            imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = "Toggle Theme"
+                        )
+                    }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "Filter Menu")

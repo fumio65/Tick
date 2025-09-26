@@ -6,6 +6,8 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.example.tick.ui.MainScreen
+import com.example.tick.ui.AddTaskScreen
+import com.example.tick.ui.EditTaskScreen
 import com.example.tick.viewmodel.TaskViewModel
 
 sealed class Screen(val route: String) {
@@ -19,7 +21,9 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
-    taskViewModel: TaskViewModel = viewModel()
+    taskViewModel: TaskViewModel = viewModel(),
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit
 ) {
     NavHost(
         navController = navController,
@@ -31,7 +35,9 @@ fun AppNavGraph(
                 onAddTaskClick = { navController.navigate(Screen.AddTask.route) },
                 onEditTaskClick = { taskId ->
                     navController.navigate(Screen.EditTask.createRoute(taskId))
-                }
+                },
+                isDarkTheme = isDarkTheme,
+                onToggleTheme = onToggleTheme
             )
         }
         composable(Screen.AddTask.route) {
@@ -41,7 +47,6 @@ fun AppNavGraph(
                 onCancel = { navController.popBackStack() }
             )
         }
-
         composable(Screen.EditTask.route) { backStackEntry ->
             val taskId = backStackEntry.arguments?.getString("taskId")?.toIntOrNull()
             if (taskId != null) {
@@ -53,6 +58,5 @@ fun AppNavGraph(
                 )
             }
         }
-
     }
 }
