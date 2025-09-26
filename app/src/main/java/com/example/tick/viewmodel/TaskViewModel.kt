@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 class TaskViewModel : ViewModel() {
 
-    // In-memory task list (initially empty)
+    // In-memory task list
     private val _tasks = MutableStateFlow<List<Task>>(emptyList())
     val tasks: StateFlow<List<Task>> = _tasks
 
@@ -34,5 +34,9 @@ class TaskViewModel : ViewModel() {
             if (task.id == taskId) task.copy(title = newTitle, description = newDescription)
             else task
         }
+    }
+
+    fun getTaskById(taskId: Int): Task? {
+        return _tasks.value.find { it.id == taskId }
     }
 }
