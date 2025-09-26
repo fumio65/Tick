@@ -1,5 +1,6 @@
 package com.example.tick.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,7 +18,7 @@ import com.example.tick.viewmodel.TaskViewModel
 fun MainScreen(
     viewModel: TaskViewModel,
     onAddTaskClick: () -> Unit,
-    onEditTaskClick: (Int) -> Unit = {} // placeholder for navigation
+    onEditTaskClick: (Int) -> Unit // now required
 ) {
     val tasks = viewModel.tasks.collectAsState()
 
@@ -52,7 +53,8 @@ fun MainScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(8.dp),
+                            .padding(8.dp)
+                            .clickable { onEditTaskClick(task.id) }, // 👈 Navigate to Edit
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
                         Row(

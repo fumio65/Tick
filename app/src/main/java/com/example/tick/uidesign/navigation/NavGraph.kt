@@ -28,7 +28,10 @@ fun AppNavGraph(
         composable(Screen.Main.route) {
             MainScreen(
                 viewModel = taskViewModel,
-                onAddTaskClick = { navController.navigate(Screen.AddTask.route) }
+                onAddTaskClick = { navController.navigate(Screen.AddTask.route) },
+                onEditTaskClick = { taskId ->
+                    navController.navigate(Screen.EditTask.createRoute(taskId))
+                }
             )
         }
         composable(Screen.AddTask.route) {
