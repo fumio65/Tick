@@ -3,6 +3,8 @@ package com.example.tick.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -14,7 +16,8 @@ import com.example.tick.viewmodel.TaskViewModel
 @Composable
 fun MainScreen(
     viewModel: TaskViewModel,
-    onAddTaskClick: () -> Unit // navigation placeholder
+    onAddTaskClick: () -> Unit,
+    onEditTaskClick: (Int) -> Unit = {} // placeholder for navigation
 ) {
     val tasks = viewModel.tasks.collectAsState()
 
@@ -58,16 +61,28 @@ fun MainScreen(
                                 .padding(16.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Column {
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(end = 8.dp)
+                            ) {
                                 Text(task.title, style = MaterialTheme.typography.titleMedium)
                                 if (task.description.isNotEmpty()) {
                                     Text(task.description, style = MaterialTheme.typography.bodyMedium)
                                 }
                             }
-                            Checkbox(
-                                checked = task.isCompleted,
-                                onCheckedChange = { viewModel.toggleComplete(task.id) }
-                            )
+                            Row {
+                                Checkbox(
+                                    checked = task.isCompleted,
+                                    onCheckedChange = { viewModel.toggleComplete(task.id) }
+                                )
+                                IconButton(onClick = { viewModel.deleteTask(task.id) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = "Delete Task"
+                                    )
+                                }
+                            }
                         }
                     }
                 }
