@@ -7,7 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.navigation.compose.rememberNavController
-import com.example.tick.ui.navigation.AppNavGraph
+import com.example.tick.uidesign.navigation.AppNavGraph
 import com.example.tick.ui.theme.TickTheme
 
 class MainActivity : ComponentActivity() {

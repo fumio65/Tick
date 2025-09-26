@@ -1,4 +1,4 @@
-package com.example.tick.ui
+package com.example.tick.uidesign
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
