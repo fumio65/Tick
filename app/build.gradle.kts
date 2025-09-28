@@ -57,6 +57,8 @@ dependencies {
     // Material Icons
     implementation("androidx.compose.material:material-icons-extended")
 
+    implementation("com.airbnb.android:lottie-compose:6.4.0")
+
     // Jetpack Compose
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")

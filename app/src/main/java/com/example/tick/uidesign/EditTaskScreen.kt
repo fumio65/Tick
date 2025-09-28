@@ -6,6 +6,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.tick.viewmodel.TaskViewModel
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveable
+
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -17,8 +21,9 @@ fun EditTaskScreen(
 ) {
     val task = viewModel.tasks.collectAsState().value.find { it.id == taskId }
 
-    var title by remember { mutableStateOf(task?.title ?: "") }
-    var description by remember { mutableStateOf(task?.description ?: "") }
+    var title by rememberSaveable(taskId) { mutableStateOf(task?.title ?: "") }
+    var description by rememberSaveable(taskId) { mutableStateOf(task?.description ?: "") }
+
 
     Scaffold(
         topBar = {
