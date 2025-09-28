@@ -6,6 +6,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.tick.viewmodel.TaskViewModel
+import androidx.compose.runtime.saveable.rememberSaveable
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -14,8 +16,9 @@ fun AddTaskScreen(
     onSave: () -> Unit,
     onCancel: () -> Unit
 ) {
-    var title by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
+    var title by rememberSaveable { mutableStateOf("") }
+    var description by rememberSaveable { mutableStateOf("") }
+
 
     Scaffold(
         topBar = {

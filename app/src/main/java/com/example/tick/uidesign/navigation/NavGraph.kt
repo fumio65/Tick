@@ -8,15 +8,18 @@ import androidx.navigation.compose.composable
 import com.example.tick.uidesign.MainScreen
 import com.example.tick.uidesign.AddTaskScreen
 import com.example.tick.uidesign.EditTaskScreen
+import com.example.tick.uidesign.SplashScreen
 import com.example.tick.viewmodel.TaskViewModel
 
 sealed class Screen(val route: String) {
+    object Splash : Screen("splash")
     object Main : Screen("main")
     object AddTask : Screen("add_task")
     object EditTask : Screen("edit_task/{taskId}") {
         fun createRoute(taskId: Int) = "edit_task/$taskId"
     }
 }
+
 
 @Composable
 fun AppNavGraph(
@@ -65,3 +68,4 @@ fun AppNavGraph(
         }
     }
 }
+
