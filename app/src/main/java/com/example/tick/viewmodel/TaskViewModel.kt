@@ -19,13 +19,29 @@ class TaskViewModel(
     private var nextId = savedStateHandle["nextId"] ?: 0
 
     // --- Dark Theme ---
-    private val _isDarkTheme = MutableStateFlow(savedStateHandle["isDarkTheme"] ?: false)
+    private val _isDarkTheme =
+        MutableStateFlow(savedStateHandle["isDarkTheme"] ?: false)
     val isDarkTheme: StateFlow<Boolean> = _isDarkTheme
 
+    // --- Category State ---
+    val categories = listOf("Work", "School", "Personal", "Home", "Others")
+
+    // holds currently selected category in AddTaskScreen / EditTaskScreen
+    private val _selectedCategory =
+        MutableStateFlow(savedStateHandle["selectedCategory"] ?: "Others")
+    val selectedCategory: StateFlow<String> = _selectedCategory
+
+    fun updateSelectedCategory(category: String) {
+        _selectedCategory.value = category
+        savedStateHandle["selectedCategory"] = category
+    }
+
+    // Save everything to SavedStateHandle
     private fun saveState() {
         savedStateHandle["tasks"] = _tasks.value
         savedStateHandle["nextId"] = nextId
         savedStateHandle["isDarkTheme"] = _isDarkTheme.value
+        savedStateHandle["selectedCategory"] = _selectedCategory.value
     }
 
     fun toggleTheme() {
@@ -34,8 +50,14 @@ class TaskViewModel(
     }
 
     // --- Task functions ---
+
     fun addTask(title: String, description: String = "") {
-        val newTask = Task(id = nextId++, title = title, description = description)
+        val newTask = Task(
+            id = nextId++,
+            title = title,
+            description = description,
+            category = _selectedCategory.value    // ⭐ NEW category field
+        )
         _tasks.value = _tasks.value + newTask
         saveState()
     }
@@ -52,9 +74,15 @@ class TaskViewModel(
         saveState()
     }
 
-    fun editTask(taskId: Int, newTitle: String, newDescription: String) {
+    fun editTask(taskId: Int, newTitle: String, newDescription: String, newCategory: String) {
         _tasks.value = _tasks.value.map { task ->
-            if (task.id == taskId) task.copy(title = newTitle, description = newDescription) else task
+            if (task.id == taskId) {
+                task.copy(
+                    title = newTitle,
+                    description = newDescription,
+                    category = newCategory      // ⭐ UPDATE category on edit
+                )
+            } else task
         }
         saveState()
     }

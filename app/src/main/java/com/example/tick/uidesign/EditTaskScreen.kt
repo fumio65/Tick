@@ -7,9 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.tick.viewmodel.TaskViewModel
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.saveable.rememberSaveable
-
-
+import androidx.compose.runtime.collectAsState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -19,11 +17,35 @@ fun EditTaskScreen(
     onSave: () -> Unit,
     onCancel: () -> Unit
 ) {
-    val task = viewModel.tasks.collectAsState().value.find { it.id == taskId }
+    val tasksState = viewModel.tasks.collectAsState()
+    val task = tasksState.value.find { it.id == taskId }
 
-    var title by rememberSaveable(taskId) { mutableStateOf(task?.title ?: "") }
-    var description by rememberSaveable(taskId) { mutableStateOf(task?.description ?: "") }
+    // If task not found, show a friendly message
+    if (task == null) {
+        Scaffold(
+            topBar = {
+                TopAppBar(title = { Text("Edit Task") })
+            }
+        ) { padding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = androidx.compose.ui.Alignment.Center
+            ) {
+                Text("Task not found.")
+            }
+        }
+        return
+    }
 
+    var title by rememberSaveable(taskId) { mutableStateOf(task.title) }
+    var description by rememberSaveable(taskId) { mutableStateOf(task.description) }
+
+    // initial category: prefer task.category, fallback to ViewModel's selectedCategory
+    val vmSelectedCategory by viewModel.selectedCategory.collectAsState()
+    val initialCategory = task.category.ifBlank { vmSelectedCategory }
+    var selectedCategory by rememberSaveable(taskId) { mutableStateOf(initialCategory) }
 
     Scaffold(
         topBar = {
@@ -46,11 +68,19 @@ fun EditTaskScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
                 label = { Text("Description (optional)") },
                 modifier = Modifier.fillMaxWidth()
+            )
+
+            // CATEGORY DROPDOWN (editable)
+            CategoryDropdown(
+                selectedCategory = selectedCategory,
+                categories = viewModel.categories,
+                onCategorySelected = { selectedCategory = it }
             )
 
             Row(
@@ -59,8 +89,8 @@ fun EditTaskScreen(
             ) {
                 Button(
                     onClick = {
-                        if (task != null && title.isNotBlank()) {
-                            viewModel.editTask(task.id, title, description)
+                        if (title.isNotBlank()) {
+                            viewModel.editTask(task.id, title, description, selectedCategory)
                             onSave()
                         }
                     },

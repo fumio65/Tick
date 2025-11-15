@@ -1,5 +1,6 @@
 package com.example.tick.uidesign
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -7,15 +8,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import com.example.tick.viewmodel.TaskViewModel
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
-
-
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.example.tick.viewmodel.TaskViewModel
 
 enum class TaskFilter { ALL, COMPLETED, PENDING }
 
@@ -94,7 +97,7 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),
-                contentAlignment = androidx.compose.ui.Alignment.Center
+                contentAlignment = Alignment.Center
             ) {
                 Text("No tasks found.")
             }
@@ -105,40 +108,88 @@ fun MainScreen(
                     .padding(padding)
             ) {
                 items(filteredTasks) { task ->
+
+                    // ⭐ ENHANCED CARD UI
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(8.dp)
-                            .clickable { onEditTaskClick(task.id) },
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        shape = RoundedCornerShape(16.dp), // Card handles rounding
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant // ❗ no alpha
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .padding(16.dp)
                         ) {
-                            Column(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(end = 8.dp)
+
+                            // TOP ROW: Title + Checkbox + Delete
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(task.title, style = MaterialTheme.typography.titleMedium)
-                                if (task.description.isNotEmpty()) {
-                                    Text(task.description, style = MaterialTheme.typography.bodyMedium)
+
+                                Column(
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = task.title,
+                                        style = MaterialTheme.typography.titleMedium
+                                    )
+
+                                    // CATEGORY CHIP
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(top = 6.dp)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .background(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                            )
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = task.category,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = task.isCompleted,
+                                        onCheckedChange = { viewModel.toggleComplete(task.id) }
+                                    )
+                                    IconButton(onClick = { viewModel.deleteTask(task.id) }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Delete Task",
+                                            tint = MaterialTheme.colorScheme.error
+                                        )
+                                    }
                                 }
                             }
-                            Row {
-                                Checkbox(
-                                    checked = task.isCompleted,
-                                    onCheckedChange = { viewModel.toggleComplete(task.id) }
+
+                            // DESCRIPTION BLOCK
+                            if (task.description.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Divider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                    thickness = 0.5.dp
                                 )
-                                IconButton(onClick = { viewModel.deleteTask(task.id) }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete Task"
-                                    )
-                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Text(
+                                    task.description,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
