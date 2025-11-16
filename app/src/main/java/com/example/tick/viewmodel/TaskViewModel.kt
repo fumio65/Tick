@@ -26,7 +26,6 @@ class TaskViewModel(
     // --- Category State ---
     val categories = listOf("Work", "School", "Personal", "Home", "Others")
 
-    // holds currently selected category in AddTaskScreen / EditTaskScreen
     private val _selectedCategory =
         MutableStateFlow(savedStateHandle["selectedCategory"] ?: "Others")
     val selectedCategory: StateFlow<String> = _selectedCategory
@@ -36,12 +35,23 @@ class TaskViewModel(
         savedStateHandle["selectedCategory"] = category
     }
 
+    // --- Due Date State ---
+    private val _selectedDueDate =
+        MutableStateFlow<Long?>(savedStateHandle["selectedDueDate"])
+    val selectedDueDate: StateFlow<Long?> = _selectedDueDate
+
+    fun setDueDate(timestamp: Long?) {
+        _selectedDueDate.value = timestamp
+        savedStateHandle["selectedDueDate"] = timestamp
+    }
+
     // Save everything to SavedStateHandle
     private fun saveState() {
         savedStateHandle["tasks"] = _tasks.value
         savedStateHandle["nextId"] = nextId
         savedStateHandle["isDarkTheme"] = _isDarkTheme.value
         savedStateHandle["selectedCategory"] = _selectedCategory.value
+        savedStateHandle["selectedDueDate"] = _selectedDueDate.value
     }
 
     fun toggleTheme() {
@@ -56,7 +66,8 @@ class TaskViewModel(
             id = nextId++,
             title = title,
             description = description,
-            category = _selectedCategory.value    // ⭐ NEW category field
+            category = _selectedCategory.value,
+            dueDate = _selectedDueDate.value
         )
         _tasks.value = _tasks.value + newTask
         saveState()
@@ -64,7 +75,9 @@ class TaskViewModel(
 
     fun toggleComplete(taskId: Int) {
         _tasks.value = _tasks.value.map { task ->
-            if (task.id == taskId) task.copy(isCompleted = !task.isCompleted) else task
+            if (task.id == taskId)
+                task.copy(isCompleted = !task.isCompleted)
+            else task
         }
         saveState()
     }
@@ -74,18 +87,26 @@ class TaskViewModel(
         saveState()
     }
 
-    fun editTask(taskId: Int, newTitle: String, newDescription: String, newCategory: String) {
+    fun editTask(
+        taskId: Int,
+        newTitle: String,
+        newDescription: String,
+        newCategory: String,
+        newDueDate: Long?
+    ) {
         _tasks.value = _tasks.value.map { task ->
             if (task.id == taskId) {
                 task.copy(
                     title = newTitle,
                     description = newDescription,
-                    category = newCategory      // ⭐ UPDATE category on edit
+                    category = newCategory,
+                    dueDate = newDueDate
                 )
             } else task
         }
         saveState()
     }
+
 
     fun getTaskById(taskId: Int): Task? {
         return _tasks.value.find { it.id == taskId }
