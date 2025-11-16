@@ -113,12 +113,9 @@ fun MainScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        shape = RoundedCornerShape(16.dp), // Card handles rounding
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant // ❗ no alpha
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+                            .padding(8.dp)
+                            .clickable { onEditTaskClick(task.id) },
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
                         Column(
                             modifier = Modifier
