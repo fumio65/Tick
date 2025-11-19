@@ -14,6 +14,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,6 +24,8 @@ fun EditTaskScreen(
     onSave: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val context = LocalContext.current   // ⭐ Required for scheduling reminders
+
     val allTasks = viewModel.tasks.collectAsState().value
     val task = allTasks.find { it.id == taskId }
 
@@ -155,13 +158,17 @@ fun EditTaskScreen(
                 Button(
                     onClick = {
                         if (title.isNotBlank()) {
+
+                            // ⭐ Now passes context (REQUIRED)
                             viewModel.editTask(
-                                task.id,
-                                title,
-                                description,
-                                category,
-                                dueDate
+                                taskId = task.id,
+                                newTitle = title,
+                                newDescription = description,
+                                newCategory = category,
+                                newDueDate = dueDate,
+                                context = context
                             )
+
                             onSave()
                         }
                     },
