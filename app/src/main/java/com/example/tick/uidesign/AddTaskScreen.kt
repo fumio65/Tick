@@ -13,6 +13,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -21,6 +22,8 @@ fun AddTaskScreen(
     onSave: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val context = LocalContext.current  // ⭐ REQUIRED for scheduling reminders
+
     var title by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
 
@@ -39,11 +42,9 @@ fun AddTaskScreen(
     LaunchedEffect(selectedDueDate) {
         selectedDueDate?.let { ms ->
             calendarStoreDateOnly(ms)
-            // initialize time picker values
             val cal = Calendar.getInstance().apply { timeInMillis = ms }
             timePickerState.hour = cal.get(Calendar.HOUR_OF_DAY)
             timePickerState.minute = cal.get(Calendar.MINUTE)
-            // datePickerState.selectedDateMillis is read-only; we won't attempt to programmatically scroll
         }
     }
 
@@ -85,17 +86,15 @@ fun AddTaskScreen(
                 }
             )
 
-            // DUE DATE BUTTON (shows current selection or placeholder)
+            // DUE DATE BUTTON
             OutlinedButton(
                 onClick = {
-                    // prepare tempCalendar for pickers
                     selectedDueDate?.let { dateMillis ->
                         calendarStoreDateOnly(dateMillis)
                         val cal = Calendar.getInstance().apply { timeInMillis = dateMillis }
                         timePickerState.hour = cal.get(Calendar.HOUR_OF_DAY)
                         timePickerState.minute = cal.get(Calendar.MINUTE)
                     } ?: run {
-                        // clear temp calendar for new selection
                         tempCalendar = null
                     }
                     showDatePicker = true
@@ -108,7 +107,7 @@ fun AddTaskScreen(
                 )
             }
 
-            // DATE PICKER (wrapped in AlertDialog for compatibility)
+            // DATE PICKER (AlertDialog wrapper)
             if (showDatePicker) {
                 AlertDialog(
                     onDismissRequest = { showDatePicker = false },
@@ -127,14 +126,11 @@ fun AddTaskScreen(
                     dismissButton = {
                         TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
                     },
-                    text = {
-                        // place the DatePicker composable inside the dialog
-                        DatePicker(state = datePickerState)
-                    }
+                    text = { DatePicker(state = datePickerState) }
                 )
             }
 
-            // TIME PICKER (wrapped in AlertDialog)
+            // TIME PICKER
             if (showTimePicker) {
                 AlertDialog(
                     onDismissRequest = { showTimePicker = false },
@@ -151,9 +147,7 @@ fun AddTaskScreen(
                     dismissButton = {
                         TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
                     },
-                    text = {
-                        TimePicker(state = timePickerState)
-                    }
+                    text = { TimePicker(state = timePickerState) }
                 )
             }
 
@@ -165,7 +159,8 @@ fun AddTaskScreen(
                 Button(
                     onClick = {
                         if (title.isNotBlank()) {
-                            viewModel.addTask(title, description)
+                            // ⭐ Now correctly passes context
+                            viewModel.addTask(title, description, context)
                             onSave()
                         }
                     },
@@ -185,8 +180,10 @@ fun AddTaskScreen(
     }
 }
 
+
+
 // -------------------------
-// Helper state at file scope
+// Helper functions
 // -------------------------
 
 private var tempCalendar: Calendar? = null
@@ -194,7 +191,6 @@ private var tempCalendar: Calendar? = null
 private fun calendarStoreDateOnly(dateMillis: Long) {
     val cal = Calendar.getInstance()
     cal.timeInMillis = dateMillis
-    // Reset time-of-day to midnight to avoid accidental carryover
     cal.set(Calendar.HOUR_OF_DAY, 0)
     cal.set(Calendar.MINUTE, 0)
     cal.set(Calendar.SECOND, 0)

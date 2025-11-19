@@ -17,10 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.example.tick.viewmodel.TaskViewModel
 import com.example.tick.util.formatDueDate
-import java.util.*
 
 enum class TaskFilter { ALL, COMPLETED, PENDING }
 
@@ -34,6 +34,8 @@ fun MainScreen(
     onToggleTheme: () -> Unit
 ) {
     val tasks = viewModel.tasks.collectAsState()
+    val context = LocalContext.current
+
     var filter by remember { mutableStateOf(TaskFilter.ALL) }
     var showMenu by remember { mutableStateOf(false) }
 
@@ -50,14 +52,16 @@ fun MainScreen(
                 actions = {
                     IconButton(onClick = onToggleTheme) {
                         Icon(
-                            imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
                             contentDescription = "Toggle Theme"
                         )
                     }
+
                     Box {
                         IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Filter Menu")
+                            Icon(Icons.Default.MoreVert, contentDescription = "Filter")
                         }
+
                         DropdownMenu(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false }
@@ -88,6 +92,7 @@ fun MainScreen(
                 }
             )
         },
+
         floatingActionButton = {
             FloatingActionButton(onClick = onAddTaskClick) {
                 Text("+")
@@ -99,32 +104,29 @@ fun MainScreen(
             Box(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center
-            ) { Text("No tasks found.") }
+            ) {
+                Text("No tasks found.")
+            }
         } else {
+
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
             ) {
                 items(filteredTasks) { task ->
 
-                    // -----------------------------
-                    // Due Date Badge Color Logic
-                    // -----------------------------
-                    val dueColor: Color
-                    val now = System.currentTimeMillis()
+                    // Determine badge color
+                    val dueColor: Color =
+                        when {
+                            task.dueDate == null -> MaterialTheme.colorScheme.outline
+                            task.dueDate < System.currentTimeMillis() ->
+                                Color(0xFFE57373) // overdue
+                            task.dueDate - System.currentTimeMillis() < 86400000 ->
+                                Color(0xFFFFB74D) // due soon
+                            else -> MaterialTheme.colorScheme.primary
+                        }
 
-                    if (task.dueDate == null) {
-                        dueColor = MaterialTheme.colorScheme.outline
-                    } else if (task.dueDate < now) {
-                        dueColor = Color(0xFFE57373) // red - overdue
-                    } else if (task.dueDate - now < 86_400_000) {
-                        dueColor = Color(0xFFFFB74D) // orange - soon
-                    } else {
-                        dueColor = MaterialTheme.colorScheme.primary // normal
-                    }
-
-                    // -----------------------------
-                    // Card UI
-                    // -----------------------------
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -150,8 +152,8 @@ fun MainScreen(
                             if (task.description.isNotBlank()) {
                                 Text(
                                     task.description,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(top = 4.dp)
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    style = MaterialTheme.typography.bodyMedium
                                 )
                             }
 
@@ -161,21 +163,19 @@ fun MainScreen(
                                     .padding(top = 8.dp)
                                     .background(
                                         MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                        shape = RoundedCornerShape(8.dp)
+                                        RoundedCornerShape(8.dp)
                                     )
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Text(
-                                    text = task.category,
+                                    task.category,
                                     color = MaterialTheme.colorScheme.primary,
                                     style = MaterialTheme.typography.labelMedium
                                 )
                             }
 
-                            // -----------------------------
-                            // DUE DATE BADGE (NEW)
-                            // -----------------------------
-                            if (task.dueDate != null) {
+                            // DUE DATE BADGE
+                            task.dueDate?.let { date ->
                                 Row(
                                     modifier = Modifier.padding(top = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -189,7 +189,7 @@ fun MainScreen(
                                             .padding(horizontal = 10.dp, vertical = 4.dp)
                                     ) {
                                         Text(
-                                            text = formatDueDate(task.dueDate),
+                                            formatDueDate(date),
                                             color = dueColor,
                                             style = MaterialTheme.typography.labelMedium
                                         )
@@ -197,7 +197,7 @@ fun MainScreen(
                                 }
                             }
 
-                            // FOOTER ACTIONS
+                            // ACTIONS (checkbox + delete)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -205,15 +205,18 @@ fun MainScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+
                                 Checkbox(
                                     checked = task.isCompleted,
-                                    onCheckedChange = { viewModel.toggleComplete(task.id) }
+                                    onCheckedChange = {
+                                        viewModel.toggleComplete(task.id)
+                                    }
                                 )
-                                IconButton(onClick = { viewModel.deleteTask(task.id) }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete Task"
-                                    )
+
+                                IconButton(onClick = {
+                                    viewModel.deleteTask(task.id, context)
+                                }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete")
                                 }
                             }
                         }
