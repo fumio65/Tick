@@ -42,6 +42,7 @@
         import java.text.SimpleDateFormat
         import androidx.compose.foundation.BorderStroke
         import java.util.*
+        import androidx.lifecycle.viewmodel.compose.viewModel
 
         enum class TaskFilter { ALL, COMPLETED, PENDING }
 
@@ -59,11 +60,9 @@
         @OptIn(ExperimentalMaterial3Api::class)
         @Composable
         fun MainScreen(
-            viewModel: TaskViewModel,
+            viewModel: TaskViewModel = viewModel(),
             onAddTaskClick: () -> Unit,
-            onEditTaskClick: (Int) -> Unit,
-            isDarkTheme: Boolean,
-            onToggleTheme: () -> Unit
+            onEditTaskClick: (Int) -> Unit
         ) {
             val tasks by viewModel.tasks.collectAsState()
             val context = LocalContext.current
@@ -202,7 +201,7 @@
                         Button(
                             onClick = {
                                 taskToDelete?.let {
-                                    viewModel.deleteTask(it.id, context)
+                                    viewModel.deleteTask(it, context)
                                 }
                                 showDeleteDialog = false
                                 taskToDelete = null
@@ -266,13 +265,6 @@
                                 Icon(
                                     if (showCalendar) Icons.Filled.CalendarMonth else Icons.Outlined.CalendarMonth,
                                     contentDescription = "Toggle Calendar"
-                                )
-                            }
-
-                            IconButton(onClick = onToggleTheme) {
-                                Icon(
-                                    if (isDarkTheme) Icons.Outlined.LightMode else Icons.Outlined.DarkMode,
-                                    contentDescription = "Toggle Theme"
                                 )
                             }
 
@@ -895,7 +887,7 @@
                     } else {
                         // Proceed with deletion
                         if (pendingDeletion.containsKey(task.id)) {
-                            viewModel.deleteTask(task.id, context)
+                            viewModel.deleteTask(task, context)
                             pendingDeletion.remove(task.id)
                         }
                     }

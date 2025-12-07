@@ -24,9 +24,7 @@ sealed class Screen(val route: String) {
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
-    taskViewModel: TaskViewModel = viewModel(),
-    isDarkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    taskViewModel: TaskViewModel = viewModel()
 ) {
     NavHost(
         navController = navController,
@@ -39,9 +37,7 @@ fun AppNavGraph(
                 onAddTaskClick = { navController.navigate(Screen.AddTask.route) },
                 onEditTaskClick = { taskId ->
                     navController.navigate(Screen.EditTask.createRoute(taskId))
-                },
-                isDarkTheme = isDarkTheme,
-                onToggleTheme = onToggleTheme
+                }
             )
         }
 
@@ -68,4 +64,3 @@ fun AppNavGraph(
         }
     }
 }
-
