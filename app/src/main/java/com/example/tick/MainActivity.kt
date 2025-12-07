@@ -13,7 +13,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.collectAsState
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -48,16 +47,15 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val taskViewModel: TaskViewModel = viewModel()
-            val isDarkTheme = taskViewModel.isDarkTheme.collectAsState()
 
-            TickTheme(darkTheme = isDarkTheme.value) {
+            // 🎨 TickTheme automatically follows system theme
+            // No need to pass darkTheme parameter - it uses isSystemInDarkTheme() by default
+            TickTheme {
                 val navController = rememberNavController()
                 Surface {
                     AppNavGraph(
                         navController = navController,
-                        taskViewModel = taskViewModel,
-                        isDarkTheme = isDarkTheme.value,
-                        onToggleTheme = { taskViewModel.toggleTheme() }
+                        taskViewModel = taskViewModel
                     )
                 }
             }
