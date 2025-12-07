@@ -604,7 +604,7 @@ fun EditTaskScreen(
                             Text(
                                 "Save Changes",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
+                                fontSize = 13.sp
                             )
                         }
                     }
