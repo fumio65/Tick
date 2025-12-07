@@ -5,6 +5,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import com.example.tick.data.Task
@@ -41,15 +43,15 @@ class TaskViewModel(
 
 
     // ------------------------------------------------------
-    // CATEGORY STATE
+    // CATEGORY STATE (Updated to accept nullable)
     // ------------------------------------------------------
     val categories = listOf("Work", "School", "Personal", "Home", "Others")
 
     private val _selectedCategory =
-        MutableStateFlow(savedStateHandle["selectedCategory"] ?: "Others")
-    val selectedCategory: StateFlow<String> = _selectedCategory
+        MutableStateFlow<String?>(savedStateHandle["selectedCategory"])
+    val selectedCategory: StateFlow<String?> = _selectedCategory
 
-    fun updateSelectedCategory(category: String) {
+    fun updateSelectedCategory(category: String?) {
         _selectedCategory.value = category
         savedStateHandle["selectedCategory"] = category
     }
@@ -81,22 +83,42 @@ class TaskViewModel(
 
 
     // ------------------------------------------------------
-    // ADD TASK + schedule alarm
+    // ADD TASK + schedule alarm (UPDATED WITH VALIDATION)
     // ------------------------------------------------------
-    fun addTask(title: String, description: String, context: Context) {
+    fun addTask(
+        title: String,
+        description: String,
+        context: Context,
+        color: Color? = null
+    ) {
+        // Validate input
+        if (title.isBlank()) return
 
-        val newTask = Task(
-            id = nextId++,
-            title = title,
-            description = description,
-            category = _selectedCategory.value,
-            dueDate = _selectedDueDate.value
-        )
+        try {
+            val newTask = Task(
+                id = nextId++,
+                title = title.trim(),
+                description = description.trim(),
+                category = _selectedCategory.value ?: "Others",
+                dueDate = _selectedDueDate.value,
+                color = color?.toArgb()
+            )
 
-        _tasks.value = _tasks.value + newTask
-        saveState()
+            // Update tasks list
+            _tasks.value = _tasks.value + newTask
 
-        scheduleReminder(context, newTask.id, newTask.title, newTask.dueDate)
+            // Save state immediately
+            saveState()
+
+            // Schedule reminder only if dueDate exists
+            _selectedDueDate.value?.let { dueDate ->
+                scheduleReminder(context, newTask.id, newTask.title, dueDate)
+            }
+
+        } catch (e: Exception) {
+            // Log error or handle gracefully
+            e.printStackTrace()
+        }
     }
 
 
@@ -109,7 +131,8 @@ class TaskViewModel(
         newDescription: String,
         newCategory: String,
         newDueDate: Long?,
-        context: Context
+        context: Context,
+        newColor: Color? = null
     ) {
         _tasks.value = _tasks.value.map { task ->
             if (task.id == taskId) {
@@ -117,7 +140,8 @@ class TaskViewModel(
                     title = newTitle,
                     description = newDescription,
                     category = newCategory,
-                    dueDate = newDueDate
+                    dueDate = newDueDate,
+                    color = newColor?.toArgb()
                 )
             } else task
         }
@@ -135,13 +159,36 @@ class TaskViewModel(
     fun deleteTask(taskId: Int, context: Context) {
         _tasks.value = _tasks.value.filterNot { it.id == taskId }
         saveState()
-
         cancelReminder(context, taskId)
     }
 
 
     // ------------------------------------------------------
-    // TOGGLE COMPLETE (needed by MainScreen checkbox)
+    // RESTORE TASK (UNDO delete)
+    // ------------------------------------------------------
+    fun restoreTask(task: Task) {
+        // Add the task back keeping its original ID
+        _tasks.value = _tasks.value + task
+        saveState()
+
+        // Reschedule its reminder
+        // (if dueDate is null or passed, scheduleReminder handles that)
+        // Use application context because this may be called after UI delete
+        // MainScreen already passes a context, so use same approach:
+        // The caller should provide context when restoring.
+    }
+
+    // Caller must provide context:
+    fun restoreTask(task: Task, context: Context) {
+        _tasks.value = _tasks.value + task
+        saveState()
+
+        scheduleReminder(context, task.id, task.title, task.dueDate)
+    }
+
+
+    // ------------------------------------------------------
+    // TOGGLE COMPLETE
     // ------------------------------------------------------
     fun toggleComplete(taskId: Int) {
         _tasks.value = _tasks.value.map { task ->
@@ -154,14 +201,14 @@ class TaskViewModel(
 
 
     // ------------------------------------------------------
-    // GET TASK (optional, safe)
+    // GET TASK BY ID
     // ------------------------------------------------------
     fun getTaskById(taskId: Int): Task? =
         _tasks.value.find { it.id == taskId }
 
 
     // ------------------------------------------------------
-    // SCHEDULE REMINDER (AlarmManager)
+    // SCHEDULE REMINDER
     // ------------------------------------------------------
     fun scheduleReminder(
         context: Context,
@@ -174,7 +221,6 @@ class TaskViewModel(
         val alarmManager =
             context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-        // Android 12+ must have explicit exact alarm permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!alarmManager.canScheduleExactAlarms()) return
         }

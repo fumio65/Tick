@@ -6,5 +6,6 @@ data class Task(
     val description: String,
     val category: String,
     val dueDate: Long? = null,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val color: Int? = null  // Add this field to store the color as an Int
 )
