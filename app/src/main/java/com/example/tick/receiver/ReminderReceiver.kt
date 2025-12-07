@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -32,12 +33,18 @@ class ReminderReceiver : BroadcastReceiver() {
             }
         }
 
+        // 🔔 Get default notification sound
+        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
         val notification = NotificationCompat.Builder(context, "task_channel")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("Task Reminder")
             .setContentText(title)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setSound(soundUri)  // ✅ Add sound
+            .setVibrate(longArrayOf(0, 500, 250, 500))  // ✅ Add vibration pattern
+            .setDefaults(NotificationCompat.DEFAULT_ALL)  // ✅ Use all defaults (sound, vibrate, lights)
             .build()
 
         NotificationManagerCompat.from(context).notify(taskId, notification)
