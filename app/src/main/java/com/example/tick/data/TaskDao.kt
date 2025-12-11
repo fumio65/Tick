@@ -6,23 +6,23 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface TaskDao {
     // Get all tasks ordered by due date
-    @Query("SELECT * FROM tasks ORDER BY dueDate ASC")
+    @Query("SELECT * FROM tasks ORDER BY scheduledDate  ASC")
     fun getAllTasks(): Flow<List<Task>>
 
     // Get active (incomplete) tasks
-    @Query("SELECT * FROM tasks WHERE isCompleted = 0 ORDER BY dueDate ASC")
+    @Query("SELECT * FROM tasks WHERE isCompleted = 0 ORDER BY scheduledDate  ASC")
     fun getActiveTasks(): Flow<List<Task>>
 
     // Get completed tasks
-    @Query("SELECT * FROM tasks WHERE isCompleted = 1 ORDER BY dueDate DESC")
+    @Query("SELECT * FROM tasks WHERE isCompleted = 1 ORDER BY scheduledDate  DESC")
     fun getCompletedTasks(): Flow<List<Task>>
 
     // Get tasks by category
-    @Query("SELECT * FROM tasks WHERE category = :category ORDER BY dueDate ASC")
+    @Query("SELECT * FROM tasks WHERE category = :category ORDER BY scheduledDate  ASC")
     fun getTasksByCategory(category: String): Flow<List<Task>>
 
     // Get tasks by priority
-    @Query("SELECT * FROM tasks WHERE priority = :priority ORDER BY dueDate ASC")
+    @Query("SELECT * FROM tasks WHERE priority = :priority ORDER BY scheduledDate  ASC")
     fun getTasksByPriority(priority: String): Flow<List<Task>>
 
     // Get a single task by ID
@@ -30,7 +30,7 @@ interface TaskDao {
     suspend fun getTaskById(taskId: Int): Task?
 
     // Get tasks due today or overdue
-    @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND dueDate <= :timestamp ORDER BY dueDate ASC")
+    @Query("SELECT * FROM tasks WHERE isCompleted = 0 AND scheduledDate  <= :timestamp ORDER BY scheduledDate  ASC")
     fun getUpcomingTasks(timestamp: Long): Flow<List<Task>>
 
     // Insert a new task
@@ -66,7 +66,7 @@ interface TaskDao {
     suspend fun updateTaskPriority(taskId: Int, priority: String)
 
     // Search tasks by title or description
-    @Query("SELECT * FROM tasks WHERE title LIKE '%' || :searchQuery || '%' OR description LIKE '%' || :searchQuery || '%' ORDER BY dueDate ASC")
+    @Query("SELECT * FROM tasks WHERE title LIKE '%' || :searchQuery || '%' OR description LIKE '%' || :searchQuery || '%' ORDER BY scheduledDate  ASC")
     fun searchTasks(searchQuery: String): Flow<List<Task>>
 
     // Get task count
@@ -76,4 +76,39 @@ interface TaskDao {
     // Get active task count
     @Query("SELECT COUNT(*) FROM tasks WHERE isCompleted = 0")
     fun getActiveTaskCount(): Flow<Int>
+
+    // Get time-blocked tasks for a specific date
+    @Query("""
+    SELECT * FROM tasks 
+    WHERE isTimeBlocked = 1 
+    AND date(startTime/1000, 'unixepoch') = date(:dateMillis/1000, 'unixepoch')
+    ORDER BY startTime ASC
+""")
+    fun getTimeBlockedTasksForDate(dateMillis: Long): Flow<List<Task>>
+
+    // Check for time conflicts (overlapping time blocks)
+    @Query("""
+    SELECT * FROM tasks 
+    WHERE isTimeBlocked = 1 
+    AND id != :excludeTaskId
+    AND (
+        (startTime <= :startTime AND endTime > :startTime) OR
+        (startTime < :endTime AND endTime >= :endTime) OR
+        (startTime >= :startTime AND endTime <= :endTime)
+    )
+""")
+    suspend fun getConflictingTasks(
+        startTime: Long,
+        endTime: Long,
+        excludeTaskId: Int = 0
+    ): List<Task>
+
+    // Get all timeblocked tasks for timeline view
+    @Query("""
+    SELECT * FROM tasks 
+    WHERE isTimeBlocked = 1 
+    AND isCompleted = 0
+    ORDER BY startTime ASC
+""")
+    fun getAllTimeBlockedTasks(): Flow<List<Task>>
 }

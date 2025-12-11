@@ -9,9 +9,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,15 +28,11 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.tick.viewmodel.TaskViewModel
-import com.example.tick.util.*
 import java.util.Calendar
-import java.text.SimpleDateFormat
-import java.util.Locale
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
@@ -93,21 +86,32 @@ fun EditTaskScreen(
     var title by rememberSaveable(taskId) { mutableStateOf(task.title) }
     var description by rememberSaveable(taskId) { mutableStateOf(task.description) }
     var category by rememberSaveable(taskId) { mutableStateOf(task.category) }
-    var dueDate by rememberSaveable(taskId) { mutableStateOf(task.dueDate) }
+    var scheduledDate by rememberSaveable(taskId) { mutableStateOf(task.scheduledDate) }
     var selectedColor by rememberSaveable(taskId) {
         mutableStateOf(task.color?.let { colorInt ->
-            // Convert Int to Color and find matching color name
             val color = Color(colorInt)
             taskColors.find { it.first.value == color.value }?.second
         })
     }
 
+    // Time blocking fields
+    var isTimeBlockEnabled by rememberSaveable(taskId) { mutableStateOf(task.isTimeBlocked) }
+    var selectedDuration by rememberSaveable(taskId) {
+        mutableStateOf(task.duration ?: 30)
+    }
+    var selectedStartTime by rememberSaveable(taskId) { mutableStateOf(task.startTime) }
+    var selectedEndTime by rememberSaveable(taskId) { mutableStateOf(task.endTime) }
+
     // Dialogs
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showColorPicker by remember { mutableStateOf(false) }
+    var showStartTimePicker by remember { mutableStateOf(false) }
+    var showEndTimePicker by remember { mutableStateOf(false) }
 
     val timePickerState = rememberTimePickerState()
+    val startTimePickerState = rememberTimePickerState()
+    val endTimePickerState = rememberTimePickerState()
 
     // Animation states
     val scrollState = rememberScrollState()
@@ -119,9 +123,9 @@ fun EditTaskScreen(
         isVisible = true
     }
 
-    // Load the existing due date and time
+    // Load the existing scheduled date and time
     LaunchedEffect(taskId) {
-        task.dueDate?.let { ms ->
+        task.scheduledDate?.let { ms ->
             val cal = Calendar.getInstance().apply { timeInMillis = ms }
             timePickerState.hour = cal.get(Calendar.HOUR_OF_DAY)
             timePickerState.minute = cal.get(Calendar.MINUTE)
@@ -368,7 +372,7 @@ fun EditTaskScreen(
                 }
             }
 
-            // SCHEDULE CARD
+            // SCHEDULE CARD WITH TIME BLOCKING
             AnimatedVisibility(
                 visible = isVisible,
                 enter = fadeIn(animationSpec = tween(300, delayMillis = 400)) +
@@ -386,6 +390,7 @@ fun EditTaskScreen(
                         modifier = Modifier.padding(20.dp),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
+                        // Header
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -399,12 +404,17 @@ fun EditTaskScreen(
                             )
 
                             AnimatedVisibility(
-                                visible = dueDate != null,
+                                visible = scheduledDate != null || isTimeBlockEnabled,
                                 enter = fadeIn() + scaleIn(),
                                 exit = fadeOut() + scaleOut()
                             ) {
                                 Surface(
-                                    onClick = { dueDate = null },
+                                    onClick = {
+                                        scheduledDate = null
+                                        isTimeBlockEnabled = false
+                                        selectedStartTime = null
+                                        selectedEndTime = null
+                                    },
                                     shape = RoundedCornerShape(12.dp),
                                     color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f),
                                     contentColor = MaterialTheme.colorScheme.error,
@@ -430,88 +440,291 @@ fun EditTaskScreen(
                             }
                         }
 
+                        // Time Block Toggle
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Date Button
-                            ElevatedButton(
-                                onClick = { showDatePicker = true },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                contentPadding = PaddingValues(vertical = 18.dp),
-                                colors = ButtonDefaults.elevatedButtonColors(
-                                    containerColor = if (dueDate != null)
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                    else MaterialTheme.colorScheme.surface,
-                                    contentColor = if (dueDate != null)
-                                        MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface
-                                ),
-                                elevation = ButtonDefaults.elevatedButtonElevation(
-                                    defaultElevation = if (dueDate != null) 2.dp else 0.dp
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarMonth,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
+                            Column {
                                 Text(
-                                    dueDate?.let {
-                                        val cal = Calendar.getInstance().apply { timeInMillis = it }
-                                        "${cal.get(Calendar.MONTH) + 1}/${cal.get(Calendar.DAY_OF_MONTH)}"
-                                    } ?: "Date",
+                                    text = "Time Block",
+                                    style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 15.sp
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (isTimeBlockEnabled) "Reserve specific time" else "Set due date only",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                             }
-
-                            // Time Button
-                            ElevatedButton(
-                                onClick = {
-                                    if (dueDate == null) {
+                            Switch(
+                                checked = isTimeBlockEnabled,
+                                onCheckedChange = {
+                                    isTimeBlockEnabled = it
+                                    if (it && scheduledDate == null) {
                                         val cal = Calendar.getInstance()
                                         cal.set(Calendar.HOUR_OF_DAY, 0)
                                         cal.set(Calendar.MINUTE, 0)
                                         cal.set(Calendar.SECOND, 0)
                                         cal.set(Calendar.MILLISECOND, 0)
-                                        dueDate = cal.timeInMillis
+                                        scheduledDate = cal.timeInMillis
                                     }
-                                    showTimePicker = true
                                 },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(16.dp),
-                                contentPadding = PaddingValues(vertical = 18.dp),
-                                colors = ButtonDefaults.elevatedButtonColors(
-                                    containerColor = if (dueDate != null)
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                    else MaterialTheme.colorScheme.surface,
-                                    contentColor = if (dueDate != null)
-                                        MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface
-                                ),
-                                elevation = ButtonDefaults.elevatedButtonElevation(
-                                    defaultElevation = if (dueDate != null) 2.dp else 0.dp
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
                                 )
+                            )
+                        }
+
+                        // Show different UI based on toggle
+                        if (!isTimeBlockEnabled) {
+                            // REGULAR MODE
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.AccessTime,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                ElevatedButton(
+                                    onClick = { showDatePicker = true },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(16.dp),
+                                    contentPadding = PaddingValues(vertical = 18.dp),
+                                    colors = ButtonDefaults.elevatedButtonColors(
+                                        containerColor = if (scheduledDate != null)
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        else MaterialTheme.colorScheme.surface,
+                                        contentColor = if (scheduledDate != null)
+                                            MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    elevation = ButtonDefaults.elevatedButtonElevation(
+                                        defaultElevation = if (scheduledDate != null) 2.dp else 0.dp
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarMonth,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        scheduledDate?.let {
+                                            val cal = Calendar.getInstance().apply { timeInMillis = it }
+                                            "${cal.get(Calendar.MONTH) + 1}/${cal.get(Calendar.DAY_OF_MONTH)}"
+                                        } ?: "Date",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp
+                                    )
+                                }
+
+                                ElevatedButton(
+                                    onClick = {
+                                        if (scheduledDate == null) {
+                                            val cal = Calendar.getInstance()
+                                            cal.set(Calendar.HOUR_OF_DAY, 0)
+                                            cal.set(Calendar.MINUTE, 0)
+                                            cal.set(Calendar.SECOND, 0)
+                                            cal.set(Calendar.MILLISECOND, 0)
+                                            scheduledDate = cal.timeInMillis
+                                        }
+                                        showTimePicker = true
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(16.dp),
+                                    contentPadding = PaddingValues(vertical = 18.dp),
+                                    colors = ButtonDefaults.elevatedButtonColors(
+                                        containerColor = if (scheduledDate != null)
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        else MaterialTheme.colorScheme.surface,
+                                        contentColor = if (scheduledDate != null)
+                                            MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    elevation = ButtonDefaults.elevatedButtonElevation(
+                                        defaultElevation = if (scheduledDate != null) 2.dp else 0.dp
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccessTime,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        scheduledDate?.let {
+                                            val cal = Calendar.getInstance().apply { timeInMillis = it }
+                                            val hour = cal.get(Calendar.HOUR_OF_DAY)
+                                            val minute = cal.get(Calendar.MINUTE).toString().padStart(2, '0')
+                                            "$hour:$minute"
+                                        } ?: "Time",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp
+                                    )
+                                }
+                            }
+                        } else {
+                            // TIMEBLOCK MODE
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                // Date button
+                                ElevatedButton(
+                                    onClick = { showDatePicker = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    contentPadding = PaddingValues(vertical = 18.dp),
+                                    colors = ButtonDefaults.elevatedButtonColors(
+                                        containerColor = if (scheduledDate != null)
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                        else MaterialTheme.colorScheme.surface,
+                                        contentColor = if (scheduledDate != null)
+                                            MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface
+                                    )
+                                ) {
+                                    Icon(Icons.Default.CalendarMonth, null, Modifier.size(20.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        scheduledDate?.let {
+                                            val cal = Calendar.getInstance().apply { timeInMillis = it }
+                                            "${getMonthName(cal.get(Calendar.MONTH))} ${cal.get(Calendar.DAY_OF_MONTH)}, ${cal.get(Calendar.YEAR)}"
+                                        } ?: "Select Date",
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp
+                                    )
+                                }
+
+                                // Duration chips
                                 Text(
-                                    dueDate?.let {
-                                        val cal = Calendar.getInstance().apply { timeInMillis = it }
-                                        val hour = cal.get(Calendar.HOUR_OF_DAY)
-                                        val minute = cal.get(Calendar.MINUTE).toString().padStart(2, '0')
-                                        "$hour:$minute"
-                                    } ?: "Time",
+                                    "Duration",
+                                    style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 15.sp
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                                    modifier = Modifier.padding(start = 4.dp)
                                 )
+
+                                LazyRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(listOf(15, 30, 45, 60, 90, 120)) { duration ->
+                                        FilterChip(
+                                            selected = selectedDuration == duration,
+                                            onClick = {
+                                                selectedDuration = duration
+                                                selectedStartTime?.let { start ->
+                                                    selectedEndTime = start + (duration * 60 * 1000)
+                                                }
+                                            },
+                                            label = {
+                                                Text(
+                                                    when {
+                                                        duration < 60 -> "${duration}m"
+                                                        duration == 60 -> "1h"
+                                                        else -> "${duration / 60}h"
+                                                    }
+                                                )
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                        )
+                                    }
+                                }
+
+                                // Start and End time buttons
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    ElevatedButton(
+                                        onClick = { showStartTimePicker = true },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(16.dp),
+                                        contentPadding = PaddingValues(vertical = 18.dp),
+                                        colors = ButtonDefaults.elevatedButtonColors(
+                                            containerColor = if (selectedStartTime != null)
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                            else MaterialTheme.colorScheme.surface
+                                        )
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("Start", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                            Text(
+                                                selectedStartTime?.let {
+                                                    val cal = Calendar.getInstance().apply { timeInMillis = it }
+                                                    "${cal.get(Calendar.HOUR_OF_DAY)}:${cal.get(Calendar.MINUTE).toString().padStart(2, '0')}"
+                                                } ?: "--:--",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 16.sp
+                                            )
+                                        }
+                                    }
+
+                                    ElevatedButton(
+                                        onClick = { showEndTimePicker = true },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(16.dp),
+                                        contentPadding = PaddingValues(vertical = 18.dp),
+                                        colors = ButtonDefaults.elevatedButtonColors(
+                                            containerColor = if (selectedEndTime != null)
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                            else MaterialTheme.colorScheme.surface
+                                        )
+                                    ) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("End", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                                            Text(
+                                                selectedEndTime?.let {
+                                                    val cal = Calendar.getInstance().apply { timeInMillis = it }
+                                                    "${cal.get(Calendar.HOUR_OF_DAY)}:${cal.get(Calendar.MINUTE).toString().padStart(2, '0')}"
+                                                } ?: "--:--",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 16.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Duration preview
+                                if (selectedStartTime != null && selectedEndTime != null) {
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text(
+                                                    "Time Block Duration",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                                )
+                                                Text(
+                                                    formatDuration(selectedStartTime!!, selectedEndTime!!),
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                            Icon(
+                                                Icons.Default.AccessTime,
+                                                null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -565,9 +778,12 @@ fun EditTaskScreen(
                                             newTitle = title,
                                             newDescription = description,
                                             newCategory = category,
-                                            newDueDate = dueDate,
+                                            newDueDate = scheduledDate,
                                             context = context,
-                                            newColor = colorToSave
+                                            newColor = colorToSave,
+                                            isTimeBlocked = isTimeBlockEnabled,
+                                            startTime = selectedStartTime,
+                                            endTime = selectedEndTime
                                         )
 
                                         delay(50)
@@ -620,15 +836,18 @@ fun EditTaskScreen(
         CustomDatePickerDialog(
             onDismiss = { showDatePicker = false },
             onDateSelected = { dateMillis ->
-                dueDate = dateMillis
+                scheduledDate = dateMillis
                 showDatePicker = false
-                showTimePicker = true
+                // Only open time picker if NOT in time block mode
+                if (!isTimeBlockEnabled) {
+                    showTimePicker = true
+                }
             },
-            initialDate = dueDate
+            initialDate = scheduledDate
         )
     }
 
-    // Time Picker Dialog
+    // Regular Time Picker Dialog (for non-timeblock mode)
     if (showTimePicker) {
         Dialog(onDismissRequest = { showTimePicker = false }) {
             Surface(
@@ -679,7 +898,7 @@ fun EditTaskScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Button(
                             onClick = {
-                                dueDate?.let { dateMillis ->
+                                scheduledDate?.let { dateMillis ->
                                     val cal = Calendar.getInstance().apply {
                                         timeInMillis = dateMillis
                                         set(Calendar.HOUR_OF_DAY, timePickerState.hour)
@@ -687,7 +906,7 @@ fun EditTaskScreen(
                                         set(Calendar.SECOND, 0)
                                         set(Calendar.MILLISECOND, 0)
                                     }
-                                    dueDate = cal.timeInMillis
+                                    scheduledDate = cal.timeInMillis
                                 }
                                 showTimePicker = false
                             },
@@ -703,44 +922,156 @@ fun EditTaskScreen(
             }
         }
     }
-}
 
-@Composable
-private fun ColorOption(
-    color: Color,
-    isSelected: Boolean,
-    onClick: () -> Unit
-) {
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.1f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy)
-    )
+    // Start Time Picker Dialog
+    if (showStartTimePicker) {
+        Dialog(onDismissRequest = { showStartTimePicker = false }) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Text(
+                        text = "Select Start Time",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
 
-    Box(
-        modifier = Modifier
-            .size(52.dp)
-            .scale(scale)
-            .clip(CircleShape)
-            .background(color)
-            .border(
-                width = if (isSelected) 3.dp else 0.dp,
-                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = CircleShape
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        AnimatedVisibility(
-            visible = isSelected,
-            enter = scaleIn() + fadeIn(),
-            exit = scaleOut() + fadeOut()
-        ) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = "Selected",
-                tint = Color.White,
-                modifier = Modifier.size(26.dp)
-            )
+                    TimePicker(
+                        state = startTimePickerState,
+                        colors = TimePickerDefaults.colors(
+                            clockDialColor = MaterialTheme.colorScheme.surfaceVariant,
+                            selectorColor = MaterialTheme.colorScheme.primary,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            timeSelectorSelectedContainerColor = MaterialTheme.colorScheme.primary,
+                            timeSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                            timeSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            timeSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = { showStartTimePicker = false },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Button(
+                            onClick = {
+                                scheduledDate?.let { dateMillis ->
+                                    val cal = Calendar.getInstance().apply {
+                                        timeInMillis = dateMillis
+                                        set(Calendar.HOUR_OF_DAY, startTimePickerState.hour)
+                                        set(Calendar.MINUTE, startTimePickerState.minute)
+                                        set(Calendar.SECOND, 0)
+                                        set(Calendar.MILLISECOND, 0)
+                                    }
+                                    selectedStartTime = cal.timeInMillis
+                                    selectedEndTime = selectedStartTime!! + (selectedDuration * 60 * 1000)
+                                }
+                                showStartTimePicker = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                        ) {
+                            Text("Set Start Time", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // End Time Picker Dialog
+    if (showEndTimePicker) {
+        Dialog(onDismissRequest = { showEndTimePicker = false }) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Text(
+                        text = "Select End Time",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    TimePicker(
+                        state = endTimePickerState,
+                        colors = TimePickerDefaults.colors(
+                            clockDialColor = MaterialTheme.colorScheme.surfaceVariant,
+                            selectorColor = MaterialTheme.colorScheme.primary,
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            timeSelectorSelectedContainerColor = MaterialTheme.colorScheme.primary,
+                            timeSelectorSelectedContentColor = MaterialTheme.colorScheme.onPrimary,
+                            timeSelectorUnselectedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            timeSelectorUnselectedContentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = { showEndTimePicker = false },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Button(
+                            onClick = {
+                                scheduledDate?.let { dateMillis ->
+                                    val cal = Calendar.getInstance().apply {
+                                        timeInMillis = dateMillis
+                                        set(Calendar.HOUR_OF_DAY, endTimePickerState.hour)
+                                        set(Calendar.MINUTE, endTimePickerState.minute)
+                                        set(Calendar.SECOND, 0)
+                                        set(Calendar.MILLISECOND, 0)
+                                    }
+                                    selectedEndTime = cal.timeInMillis
+                                    selectedStartTime?.let { start ->
+                                        selectedDuration = ((selectedEndTime!! - start) / (60 * 1000)).toInt()
+                                    }
+                                }
+                                showEndTimePicker = false
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                        ) {
+                            Text("Set End Time", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
         }
     }
 }

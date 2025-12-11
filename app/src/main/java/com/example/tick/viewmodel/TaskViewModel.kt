@@ -93,11 +93,11 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     // ------------------------------------------------------
     // DUE DATE STATE
     // ------------------------------------------------------
-    private val _selectedDueDate = MutableStateFlow<Long?>(null)
-    val selectedDueDate: StateFlow<Long?> = _selectedDueDate
+    private val _selectedScheduledDate = MutableStateFlow<Long?>(null)
+    val selectedScheduledDate: StateFlow<Long?> = _selectedScheduledDate
 
-    fun setDueDate(timestamp: Long?) {
-        _selectedDueDate.value = timestamp
+    fun setScheduledDate(timestamp: Long?) {
+        _selectedScheduledDate.value = timestamp
     }
 
     // ------------------------------------------------------
@@ -136,38 +136,58 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // ------------------------------------------------------
-    // ADD TASK + schedule alarm
+    // ADD TASK + schedule alarm (FIXED WITH TIME BLOCKING)
     // ------------------------------------------------------
     fun addTask(
         title: String,
         description: String,
         context: Context,
         color: Color? = null,
-        priority: String = "Medium"
+        priority: String = "Medium",
+        // NEW PARAMETERS FOR TIME BLOCKING
+        isTimeBlocked: Boolean = false,
+        startTime: Long? = null,
+        endTime: Long? = null
     ) {
         // Validate input
         if (title.isBlank()) return
 
         viewModelScope.launch {
             try {
+                // Calculate duration if time blocking is enabled
+                val duration = if (isTimeBlocked && startTime != null && endTime != null) {
+                    ((endTime - startTime) / (60 * 1000)).toInt() // Convert to minutes
+                } else null
+
                 val newTask = Task(
                     id = 0, // Room will auto-generate
                     title = title.trim(),
                     description = description.trim(),
                     category = _selectedCategory.value ?: "Others",
-                    dueDate = _selectedDueDate.value,
+                    scheduledDate  = _selectedScheduledDate.value,
                     color = color?.toArgb(),
                     priority = priority,
                     isCompleted = false,
-                    createdAt = System.currentTimeMillis()
+                    createdAt = System.currentTimeMillis(),
+                    // TIME BLOCKING FIELDS
+                    isTimeBlocked = isTimeBlocked,
+                    startTime = startTime,
+                    endTime = endTime,
+                    duration = duration
                 )
 
                 // Insert task and get the generated ID
                 val taskId = repository.insertTask(newTask).toInt()
 
-                // Schedule reminder only if dueDate exists
-                _selectedDueDate.value?.let { dueDate ->
-                    scheduleReminder(context, taskId, newTask.title, dueDate)
+                // Schedule reminder based on mode
+                if (isTimeBlocked && startTime != null) {
+                    // For time-blocked tasks, set reminder for start time
+                    scheduleReminder(context, taskId, newTask.title, startTime)
+                } else {
+                    // For regular tasks, use due date
+                    _selectedScheduledDate.value?.let { dueDate ->
+                        scheduleReminder(context, taskId, newTask.title, dueDate)
+                    }
                 }
 
             } catch (e: Exception) {
@@ -176,8 +196,13 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun clearTaskFormState() {
+        _selectedCategory.value = null
+        _selectedScheduledDate.value = null
+    }
+
     // ------------------------------------------------------
-    // EDIT TASK + reschedule alarm
+    // EDIT TASK + reschedule alarm (FIXED WITH TIME BLOCKING)
     // ------------------------------------------------------
     fun editTask(
         taskId: Int,
@@ -187,26 +212,43 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         newDueDate: Long?,
         context: Context,
         newColor: Color? = null,
-        newPriority: String = "Medium"
+        newPriority: String = "Medium",
+        // NEW PARAMETERS FOR TIME BLOCKING
+        isTimeBlocked: Boolean = false,
+        startTime: Long? = null,
+        endTime: Long? = null
     ) {
         viewModelScope.launch {
             try {
                 val existingTask = repository.getTaskById(taskId)
                 existingTask?.let { task ->
+                    // Calculate duration if time blocking is enabled
+                    val duration = if (isTimeBlocked && startTime != null && endTime != null) {
+                        ((endTime - startTime) / (60 * 1000)).toInt()
+                    } else null
+
                     val updatedTask = task.copy(
                         title = newTitle.trim(),
                         description = newDescription.trim(),
                         category = newCategory,
-                        dueDate = newDueDate,
+                        scheduledDate  = newDueDate,
                         color = newColor?.toArgb(),
-                        priority = newPriority
+                        priority = newPriority,
+                        isTimeBlocked = isTimeBlocked,
+                        startTime = startTime,
+                        endTime = endTime,
+                        duration = duration
                     )
                     repository.updateTask(updatedTask)
 
                     // Cancel old reminder and schedule new one
                     cancelReminder(context, taskId)
-                    newDueDate?.let { dueDate ->
-                        scheduleReminder(context, taskId, newTitle, dueDate)
+                    if (isTimeBlocked && startTime != null) {
+                        scheduleReminder(context, taskId, newTitle, startTime)
+                    } else {
+                        newDueDate?.let { dueDate ->
+                            scheduleReminder(context, taskId, newTitle, dueDate)
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -264,8 +306,12 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 repository.insertTask(task)
-                task.dueDate?.let { dueDate ->
-                    scheduleReminder(context, task.id, task.title, dueDate)
+                if (task.isTimeBlocked && task.startTime != null) {
+                    scheduleReminder(context, task.id, task.title, task.startTime)
+                } else {
+                    task.scheduledDate ?.let { dueDate ->
+                        scheduleReminder(context, task.id, task.title, dueDate)
+                    }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
