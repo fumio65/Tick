@@ -120,13 +120,13 @@
                     val dayEnd = dayStart + (24 * 60 * 60 * 1000 - 1)
 
                     val tasksOnDay = tasks.filter { task ->
-                        task.dueDate != null &&
-                                task.dueDate in dayStart..dayEnd &&
+                        task.scheduledDate  != null &&
+                                task.scheduledDate  in dayStart..dayEnd &&
                                 !pendingDeletion.containsKey(task.id)
                     }
 
                     val hasOverdue = tasksOnDay.any {
-                        it.dueDate!! < System.currentTimeMillis() && !it.isCompleted
+                        it.scheduledDate !! < System.currentTimeMillis() && !it.isCompleted
                     }
 
                     val isCurrentMonthDay =
@@ -159,7 +159,7 @@
                     }
 
                     val matchesDate =
-                        selectedDate == null || (t.dueDate != null && isSameDay(t.dueDate, selectedDate!!))
+                        selectedDate == null || (t.scheduledDate  != null && isSameDay(t.scheduledDate , selectedDate!!))
 
                     matchesFilter && matchesDate && !pendingDeletion.containsKey(t.id)
                 }
@@ -976,9 +976,9 @@
             val taskColor = task.color?.let { Color(it) } ?: MaterialTheme.colorScheme.primary
 
             val dueColor = when {
-                task.dueDate == null -> MaterialTheme.colorScheme.outline
-                task.dueDate < System.currentTimeMillis() && !isCompleted -> MaterialTheme.colorScheme.error
-                task.dueDate - System.currentTimeMillis() < 86_400_000 -> Color(0xFFFF9800)
+                task.scheduledDate  == null -> MaterialTheme.colorScheme.outline
+                task.scheduledDate  < System.currentTimeMillis() && !isCompleted -> MaterialTheme.colorScheme.error
+                task.scheduledDate  - System.currentTimeMillis() < 86_400_000 -> Color(0xFFFF9800)
                 else -> MaterialTheme.colorScheme.primary
             }
 
@@ -1123,7 +1123,8 @@
                                 }
                             }
 
-                            task.dueDate?.let {
+                            // Show timeblock info if it's a timeblocked task
+                            if (task.isTimeBlocked && task.startTime != null && task.endTime != null) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
                                     color = if (isCompleted)
@@ -1146,7 +1147,7 @@
                                             modifier = Modifier.size(12.dp)
                                         )
                                         Text(
-                                            text = formatDueDate(it),
+                                            text = formatTimeBlock(task.startTime, task.endTime),
                                             color = if (isCompleted)
                                                 dueColor.copy(alpha = 0.5f)
                                             else
@@ -1155,6 +1156,43 @@
                                             fontWeight = FontWeight.Medium,
                                             fontSize = 11.sp
                                         )
+                                    }
+                                }
+                            } else {
+                                // Show regular due date
+                                task.scheduledDate ?.let {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isCompleted)
+                                            dueColor.copy(alpha = 0.1f)
+                                        else
+                                            dueColor.copy(alpha = 0.12f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Schedule,
+                                                contentDescription = null,
+                                                tint = if (isCompleted)
+                                                    dueColor.copy(alpha = 0.5f)
+                                                else
+                                                    dueColor,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Text(
+                                                text = formatDueDate(it),
+                                                color = if (isCompleted)
+                                                    dueColor.copy(alpha = 0.5f)
+                                                else
+                                                    dueColor,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Medium,
+                                                fontSize = 11.sp
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1176,4 +1214,14 @@
                     }
                 }
             }
+        }
+
+        // Format timeblock times (e.g., "9:00 AM - 1:00 PM")
+        private fun formatTimeBlock(startTime: Long, endTime: Long): String {
+            val startCal = Calendar.getInstance().apply { timeInMillis = startTime }
+            val endCal = Calendar.getInstance().apply { timeInMillis = endTime }
+
+            val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+
+            return "${timeFormat.format(startCal.time)} - ${timeFormat.format(endCal.time)}"
         }
