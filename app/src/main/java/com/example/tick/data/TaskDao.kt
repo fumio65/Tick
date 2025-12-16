@@ -3,6 +3,8 @@ package com.example.tick.data
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
+import androidx.room.Transaction
+
 @Dao
 interface TaskDao {
     // Get all tasks ordered by due date
@@ -111,4 +113,14 @@ interface TaskDao {
     ORDER BY startTime ASC
 """)
     fun getAllTimeBlockedTasks(): Flow<List<Task>>
+
+    // Get a task with its subtasks
+    @Transaction
+    @Query("SELECT * FROM tasks WHERE id = :taskId")
+    suspend fun getTaskWithSubtasks(taskId: Int): TaskWithSubtasks?
+
+    // Get all tasks with their subtasks
+    @Transaction
+    @Query("SELECT * FROM tasks ORDER BY scheduledDate ASC")
+    fun getAllTasksWithSubtasks(): Flow<List<TaskWithSubtasks>>
 }

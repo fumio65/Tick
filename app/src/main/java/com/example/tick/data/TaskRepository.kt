@@ -2,7 +2,12 @@ package com.example.tick.data
 
 import kotlinx.coroutines.flow.Flow
 
-class TaskRepository(private val taskDao: TaskDao) {
+class TaskRepository(
+    private val taskDao: TaskDao,
+    private val subtaskDao: SubtaskDao
+) {
+
+    // ==================== TASK OPERATIONS ====================
 
     // Observe all tasks
     val allTasks: Flow<List<Task>> = taskDao.getAllTasks()
@@ -40,6 +45,16 @@ class TaskRepository(private val taskDao: TaskDao) {
     // Get task by ID
     suspend fun getTaskById(taskId: Int): Task? {
         return taskDao.getTaskById(taskId)
+    }
+
+    // Get task with subtasks
+    suspend fun getTaskWithSubtasks(taskId: Int): TaskWithSubtasks? {
+        return taskDao.getTaskWithSubtasks(taskId)
+    }
+
+    // Get all tasks with subtasks
+    fun getAllTasksWithSubtasks(): Flow<List<TaskWithSubtasks>> {
+        return taskDao.getAllTasksWithSubtasks()
     }
 
     // Insert a new task
@@ -80,5 +95,59 @@ class TaskRepository(private val taskDao: TaskDao) {
     // Update task priority
     suspend fun updateTaskPriority(taskId: Int, priority: String) {
         taskDao.updateTaskPriority(taskId, priority)
+    }
+
+    // ==================== SUBTASK OPERATIONS ====================
+
+    // Get all subtasks for a task
+    fun getSubtasksForTask(taskId: Int): Flow<List<Subtask>> {
+        return subtaskDao.getSubtasksForTask(taskId)
+    }
+
+    // Get a single subtask by ID
+    suspend fun getSubtaskById(subtaskId: Int): Subtask? {
+        return subtaskDao.getSubtaskById(subtaskId)
+    }
+
+    // Insert a new subtask
+    suspend fun insertSubtask(subtask: Subtask): Long {
+        return subtaskDao.insertSubtask(subtask)
+    }
+
+    // Insert multiple subtasks
+    suspend fun insertSubtasks(subtasks: List<Subtask>) {
+        subtaskDao.insertSubtasks(subtasks)
+    }
+
+    // Update an existing subtask
+    suspend fun updateSubtask(subtask: Subtask) {
+        subtaskDao.updateSubtask(subtask)
+    }
+
+    // Delete a subtask
+    suspend fun deleteSubtask(subtask: Subtask) {
+        subtaskDao.deleteSubtask(subtask)
+    }
+
+    // Delete all subtasks for a task
+    suspend fun deleteSubtasksForTask(taskId: Int) {
+        subtaskDao.deleteSubtasksForTask(taskId)
+    }
+
+    // Toggle subtask completion
+    suspend fun toggleSubtaskCompletion(subtaskId: Int, isCompleted: Boolean) {
+        subtaskDao.updateSubtaskCompletion(subtaskId, isCompleted)
+    }
+
+    // Get subtask progress for a task
+    suspend fun getSubtaskProgress(taskId: Int): Pair<Int, Int> {
+        val completed = subtaskDao.getCompletedSubtaskCount(taskId)
+        val total = subtaskDao.getTotalSubtaskCount(taskId)
+        return Pair(completed, total)
+    }
+
+    // Update subtask order
+    suspend fun updateSubtaskOrder(subtaskId: Int, orderIndex: Int) {
+        subtaskDao.updateSubtaskOrder(subtaskId, orderIndex)
     }
 }

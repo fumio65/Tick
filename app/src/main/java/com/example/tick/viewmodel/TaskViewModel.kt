@@ -19,6 +19,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.example.tick.data.Subtask
+import com.example.tick.data.TaskWithSubtasks
+import kotlinx.coroutines.flow.first
 
 class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -34,8 +37,10 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     val activeTaskCount: StateFlow<Int>
 
     init {
-        val taskDao = TaskDatabase.getDatabase(application).taskDao()
-        repository = TaskRepository(taskDao)
+        val database = TaskDatabase.getDatabase(application)
+        val taskDao = database.taskDao()
+        val subtaskDao = database.subtaskDao()
+        repository = TaskRepository(taskDao, subtaskDao)
 
         tasks = repository.allTasks.stateIn(
             scope = viewModelScope,
@@ -147,7 +152,8 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         // NEW PARAMETERS FOR TIME BLOCKING
         isTimeBlocked: Boolean = false,
         startTime: Long? = null,
-        endTime: Long? = null
+        endTime: Long? = null,
+        subtasks: List<String> = emptyList()
     ) {
         // Validate input
         if (title.isBlank()) return
@@ -164,7 +170,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                     title = title.trim(),
                     description = description.trim(),
                     category = _selectedCategory.value ?: "Others",
-                    scheduledDate  = _selectedScheduledDate.value,
+                    scheduledDate = _selectedScheduledDate.value,
                     color = color?.toArgb(),
                     priority = priority,
                     isCompleted = false,
@@ -178,6 +184,19 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
                 // Insert task and get the generated ID
                 val taskId = repository.insertTask(newTask).toInt()
+
+                // Insert subtasks if any
+                // Insert subtasks if any
+                if (subtasks.isNotEmpty()) {
+                    val subtaskEntities = subtasks.map { subtaskTitle ->
+                        Subtask(
+                            parentTaskId = taskId,  // ⬅️ Change from taskId to parentTaskId
+                            title = subtaskTitle,
+                            isCompleted = false
+                        )
+                    }
+                    repository.insertSubtasks(subtaskEntities)
+                }
 
                 // Schedule reminder based on mode
                 if (isTimeBlocked && startTime != null) {
@@ -420,6 +439,161 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             pending.cancel()
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    // ==================== SUBTASK OPERATIONS ====================
+
+    // Get subtasks for a specific task
+    fun getSubtasksForTask(taskId: Int): StateFlow<List<Subtask>> {
+        return repository.getSubtasksForTask(taskId).stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+    }
+
+    suspend fun getSubtasksForTaskOnce(taskId: Int): List<Subtask> {
+        return repository.getSubtasksForTask(taskId).first()
+    }
+
+    // Add a new subtask
+    fun addSubtask(taskId: Int, title: String) {
+        if (title.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                val subtask = Subtask(
+                    parentTaskId = taskId,
+                    title = title.trim(),
+                    isCompleted = false,
+                    orderIndex = 0
+                )
+                repository.insertSubtask(subtask)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Add multiple subtasks at once
+    fun addSubtasks(taskId: Int, subtaskTitles: List<String>) {
+        viewModelScope.launch {
+            try {
+                val subtasks = subtaskTitles
+                    .filter { it.isNotBlank() }
+                    .mapIndexed { index, title ->
+                        Subtask(
+                            parentTaskId = taskId,
+                            title = title.trim(),
+                            isCompleted = false,
+                            orderIndex = index
+                        )
+                    }
+                if (subtasks.isNotEmpty()) {
+                    repository.insertSubtasks(subtasks)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Toggle subtask completion
+    fun toggleSubtaskComplete(subtaskId: Int) {
+        viewModelScope.launch {
+            try {
+                val subtask = repository.getSubtaskById(subtaskId)
+                subtask?.let {
+                    repository.toggleSubtaskCompletion(subtaskId, !it.isCompleted)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Update subtask title
+    fun updateSubtaskTitle(subtaskId: Int, newTitle: String) {
+        if (newTitle.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                val subtask = repository.getSubtaskById(subtaskId)
+                subtask?.let {
+                    val updated = it.copy(title = newTitle.trim())
+                    repository.updateSubtask(updated)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Delete a subtask
+    fun deleteSubtask(subtaskId: Int) {
+        viewModelScope.launch {
+            try {
+                val subtask = repository.getSubtaskById(subtaskId)
+                subtask?.let {
+                    repository.deleteSubtask(it)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Delete subtask object directly
+    fun deleteSubtask(subtask: Subtask) {
+        viewModelScope.launch {
+            try {
+                repository.deleteSubtask(subtask)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Delete all subtasks for a task
+    fun deleteAllSubtasksForTask(taskId: Int) {
+        viewModelScope.launch {
+            try {
+                repository.deleteSubtasksForTask(taskId)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Get subtask progress (completed/total)
+    suspend fun getSubtaskProgress(taskId: Int): Pair<Int, Int> {
+        return try {
+            repository.getSubtaskProgress(taskId)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Pair(0, 0)
+        }
+    }
+
+    // Update subtask order (for drag-to-reorder later)
+    fun updateSubtaskOrder(subtaskId: Int, orderIndex: Int) {
+        viewModelScope.launch {
+            try {
+                repository.updateSubtaskOrder(subtaskId, orderIndex)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // Get task with all its subtasks
+    suspend fun getTaskWithSubtasks(taskId: Int): TaskWithSubtasks? {
+        return try {
+            repository.getTaskWithSubtasks(taskId)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 }

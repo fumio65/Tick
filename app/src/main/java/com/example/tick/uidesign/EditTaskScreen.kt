@@ -102,6 +102,41 @@ fun EditTaskScreen(
     var selectedStartTime by rememberSaveable(taskId) { mutableStateOf(task.startTime) }
     var selectedEndTime by rememberSaveable(taskId) { mutableStateOf(task.endTime) }
 
+
+
+    // Subtask state management
+    var showSubtaskDialog by remember { mutableStateOf(false) }
+    var newSubtaskText by remember { mutableStateOf("") }
+
+    // Load subtasks from database - MUST provide initial value to avoid null
+    val dbSubtasks by viewModel.getSubtasksForTask(taskId)
+        .collectAsState(initial = emptyList())
+
+    // Local mutable copy for editing
+    var subtasks by remember(taskId) { mutableStateOf<List<String>>(emptyList()) }
+
+    // Track if we've initialized
+    var hasLoadedSubtasks by remember(taskId) { mutableStateOf(false) }
+
+    // Initialize from database when data loads
+    LaunchedEffect(dbSubtasks, taskId) {
+        // CRITICAL: Check list content, not the object reference
+        if (!hasLoadedSubtasks) {
+            if (dbSubtasks.isNotEmpty()) {
+                subtasks = dbSubtasks.map { it.title }
+            }
+            hasLoadedSubtasks = true
+        }
+    }
+
+    LaunchedEffect(taskId) {
+        val loadedSubtasks = viewModel.getSubtasksForTaskOnce(taskId)
+        subtasks = loadedSubtasks.map { it.title }
+    }
+
+
+
+
     // Dialogs
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -731,6 +766,128 @@ fun EditTaskScreen(
                 }
             }
 
+            // SUBTASKS SECTION
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = fadeIn(animationSpec = tween(300, delayMillis = 450)) +
+                        slideInVertically(initialOffsetY = { -20 })
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Subtasks",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "${subtasks.size} subtask${if (subtasks.size != 1) "s" else ""}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+
+                            FilledTonalButton(
+                                onClick = { showSubtaskDialog = true },
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("Add", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            }
+                        }
+
+                        // Display existing subtasks
+                        if (subtasks.isNotEmpty()) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                subtasks.forEachIndexed { index, subtask ->
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.weight(1f),
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(20.dp)
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(
+                                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                                        )
+                                                )
+                                                Text(
+                                                    text = subtask,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = {
+                                                    subtasks = subtasks.filterIndexed { i, _ -> i != index }
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Remove",
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // ACTION BUTTONS
@@ -785,6 +942,12 @@ fun EditTaskScreen(
                                             startTime = selectedStartTime,
                                             endTime = selectedEndTime
                                         )
+
+                                        // Handle subtasks: delete all old ones and add new ones
+                                        viewModel.deleteAllSubtasksForTask(taskId)
+                                        if (subtasks.isNotEmpty()) {
+                                            viewModel.addSubtasks(taskId, subtasks)
+                                        }
 
                                         delay(50)
                                         onSave()
@@ -1068,6 +1231,76 @@ fun EditTaskScreen(
                             elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                         ) {
                             Text("Set End Time", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Subtask Dialog
+    if (showSubtaskDialog) {
+        Dialog(onDismissRequest = {
+            showSubtaskDialog = false
+            newSubtaskText = ""
+        }) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Text(
+                        text = "Add Subtask",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    OutlinedTextField(
+                        value = newSubtaskText,
+                        onValueChange = { newSubtaskText = it },
+                        placeholder = { Text("Enter subtask...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = {
+                                showSubtaskDialog = false
+                                newSubtaskText = ""
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Button(
+                            onClick = {
+                                if (newSubtaskText.isNotBlank()) {
+                                    subtasks = subtasks + newSubtaskText.trim()
+                                    newSubtaskText = ""
+                                    showSubtaskDialog = false
+                                }
+                            },
+                            enabled = newSubtaskText.isNotBlank(),
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                        ) {
+                            Text("Add", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
