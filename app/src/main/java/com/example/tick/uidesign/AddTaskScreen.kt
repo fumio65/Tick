@@ -87,6 +87,7 @@ fun AddTaskScreen(
 
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val selectedScheduledDate by viewModel.selectedScheduledDate.collectAsState()
+    var showCustomCategoryDialog by remember { mutableStateOf(false) }
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -280,6 +281,9 @@ fun AddTaskScreen(
                         categories = viewModel.categories,
                         onCategorySelected = { category ->
                             viewModel.updateSelectedCategory(category)
+                        },
+                        onCreateCustomCategory = {
+                            showCustomCategoryDialog = true
                         }
                     )
                 }
@@ -1306,14 +1310,28 @@ fun AddTaskScreen(
             }
         }
     }
+
+    // Custom Category Dialog
+    if (showCustomCategoryDialog) {
+        CustomCategoryDialog(
+            onDismiss = {
+                showCustomCategoryDialog = false
+            },
+            onCategoryCreated = { customCategory ->
+                viewModel.updateSelectedCategory(customCategory)
+                showCustomCategoryDialog = false
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoryDropdown(
-    selectedCategory: String?,  // Now accepts nullable
+    selectedCategory: String?,
     categories: List<String>,
-    onCategorySelected: (String) -> Unit
+    onCategorySelected: (String) -> Unit,
+    onCreateCustomCategory: () -> Unit = {}  // Add this parameter
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -1323,7 +1341,7 @@ fun CategoryDropdown(
         modifier = Modifier.fillMaxWidth()
     ) {
         OutlinedTextField(
-            value = selectedCategory ?: "",  // Show empty if null
+            value = selectedCategory ?: "",
             onValueChange = {},
             readOnly = true,
             placeholder = {
@@ -1391,8 +1409,13 @@ fun CategoryDropdown(
                         }
                     },
                     onClick = {
-                        onCategorySelected(category)
-                        expanded = false
+                        if (category == "Others") {
+                            expanded = false
+                            onCreateCustomCategory()  // Trigger custom category dialog
+                        } else {
+                            onCategorySelected(category)
+                            expanded = false
+                        }
                     },
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
@@ -1404,6 +1427,122 @@ fun CategoryDropdown(
                         ),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
                 )
+            }
+        }
+    }
+}
+
+@Composable
+fun CustomCategoryDialog(
+    onDismiss: () -> Unit,
+    onCategoryCreated: (String) -> Unit
+) {
+    var categoryName by remember { mutableStateOf("") }
+    var showError by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                // Header with icon
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Text(
+                        text = "Custom Category",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+
+                // Description
+                Text(
+                    text = "Create a custom category for your task",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+
+                // Input field
+                OutlinedTextField(
+                    value = categoryName,
+                    onValueChange = {
+                        categoryName = it
+                        showError = false
+                    },
+                    placeholder = { Text("e.g., Fitness, Shopping, etc.") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    singleLine = true,
+                    isError = showError,
+                    supportingText = if (showError) {
+                        { Text("Category name cannot be empty", color = MaterialTheme.colorScheme.error) }
+                    } else null,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                        errorBorderColor = MaterialTheme.colorScheme.error
+                    )
+                )
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+
+                // Action buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Cancel", fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            if (categoryName.isNotBlank()) {
+                                onCategoryCreated(categoryName.trim())
+                            } else {
+                                showError = true
+                            }
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Create", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }

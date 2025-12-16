@@ -86,6 +86,7 @@ fun EditTaskScreen(
     var title by rememberSaveable(taskId) { mutableStateOf(task.title) }
     var description by rememberSaveable(taskId) { mutableStateOf(task.description) }
     var category by rememberSaveable(taskId) { mutableStateOf(task.category) }
+    var showCustomCategoryDialog by remember { mutableStateOf(false) }
     var scheduledDate by rememberSaveable(taskId) { mutableStateOf(task.scheduledDate) }
     var selectedColor by rememberSaveable(taskId) {
         mutableStateOf(task.color?.let { colorInt ->
@@ -284,6 +285,7 @@ fun EditTaskScreen(
                 }
             }
 
+
             // CATEGORY
             AnimatedVisibility(
                 visible = isVisible,
@@ -298,13 +300,78 @@ fun EditTaskScreen(
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(start = 4.dp)
                     )
-                    CategoryDropdown(
-                        selectedCategory = category,
-                        categories = viewModel.categories,
-                        onCategorySelected = { category = it }
-                    )
+
+                    // Check if category is custom (not in default list)
+                    val isCustomCategory = remember(category) {
+                        !viewModel.categories.dropLast(1).contains(category) // Exclude "Others"
+                    }
+
+                    if (isCustomCategory && category.isNotEmpty()) {
+                        // Show editable text field for custom category
+                        OutlinedTextField(
+                            value = category,
+                            onValueChange = { category = it },
+                            placeholder = {
+                                Text(
+                                    "Custom category",
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    // Reset to default category selection
+                                    category = "Others"
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Switch to default categories",
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                focusedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f),
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            ),
+                            textStyle = LocalTextStyle.current.copy(
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
+                            singleLine = true
+                        )
+
+                        // Helper text
+                        Text(
+                            text = "Custom category • Tap X to switch to defaults",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                        )
+                    } else {
+                        // Show dropdown for default categories
+                        CategoryDropdown(
+                            selectedCategory = category,
+                            categories = viewModel.categories,
+                            onCategorySelected = { category = it },
+                            onCreateCustomCategory = {
+                                showCustomCategoryDialog = true
+                            }
+                        )
+                    }
                 }
             }
+
 
             // COLOR SELECTION
             AnimatedVisibility(
@@ -1306,5 +1373,18 @@ fun EditTaskScreen(
                 }
             }
         }
+    }
+
+    // Custom Category Dialog
+    if (showCustomCategoryDialog) {
+        CustomCategoryDialog(
+            onDismiss = {
+                showCustomCategoryDialog = false
+            },
+            onCategoryCreated = { customCategory ->
+                category = customCategory
+                showCustomCategoryDialog = false
+            }
+        )
     }
 }
