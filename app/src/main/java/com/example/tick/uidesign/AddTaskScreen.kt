@@ -52,6 +52,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.filled.Add
+
 
 // Predefined task colors with better palette
 val taskColors = listOf(
@@ -115,6 +117,11 @@ fun AddTaskScreen(
 
     val startTimePickerState = rememberTimePickerState()
     val endTimePickerState = rememberTimePickerState()
+
+    // Subtask states
+    var subtasks by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var showSubtaskDialog by remember { mutableStateOf(false) }
+    var newSubtaskText by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         isVisible = true
@@ -739,6 +746,126 @@ fun AddTaskScreen(
                 }
             }
 
+            // SUBTASKS SECTION
+            AnimatedVisibility(
+                visible = isVisible,
+                enter = fadeIn(animationSpec = tween(300, delayMillis = 350)) +
+                        slideInVertically(initialOffsetY = { -20 })
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Column {
+                                    Text(
+                                        text = "Subtasks",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "${subtasks.size} subtask${if (subtasks.size != 1) "s" else ""}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+
+                            FilledTonalButton(
+                                onClick = { showSubtaskDialog = true },
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("Add", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            }
+                        }
+
+                        // Display existing subtasks
+                        if (subtasks.isNotEmpty()) {
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                subtasks.forEachIndexed { index, subtask ->
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.weight(1f),
+                                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(20.dp)
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(
+                                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                                        )
+                                                )
+                                                Text(
+                                                    text = subtask,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = {
+                                                    subtasks = subtasks.filterIndexed { i, _ -> i != index }
+                                                },
+                                                modifier = Modifier.size(32.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Remove",
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -785,7 +912,7 @@ fun AddTaskScreen(
                     }
 
                     // REPLACE THIS SECTION IN YOUR AddTaskScreen.kt
-// Find the "Save Task" Button onClick and replace it with this:
+                    // Find the "Save Task" Button onClick and replace it with this:
 
                     Button(
                         onClick = {
@@ -797,7 +924,7 @@ fun AddTaskScreen(
                                         // Get the actual Color object from the selected color name
                                         val colorToSave = taskColors.find { it.second == selectedColor }?.first
 
-                                        // Call addTask with time blocking parameters
+                                        // Call addTask with time blocking parameters and subtasks
                                         viewModel.addTask(
                                             title = title,
                                             description = description,
@@ -805,7 +932,8 @@ fun AddTaskScreen(
                                             color = colorToSave,
                                             isTimeBlocked = isTimeBlockEnabled,
                                             startTime = selectedStartTime,
-                                            endTime = selectedEndTime
+                                            endTime = selectedEndTime,
+                                            subtasks = subtasks
                                         )
 
                                         // Small delay to ensure state is saved
@@ -1102,6 +1230,76 @@ fun AddTaskScreen(
                             elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                         ) {
                             Text("Set End Time", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Subtask Dialog
+    if (showSubtaskDialog) {
+        Dialog(onDismissRequest = {
+            showSubtaskDialog = false
+            newSubtaskText = ""
+        }) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
+                    Text(
+                        text = "Add Subtask",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    OutlinedTextField(
+                        value = newSubtaskText,
+                        onValueChange = { newSubtaskText = it },
+                        placeholder = { Text("Enter subtask...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        )
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = {
+                                showSubtaskDialog = false
+                                newSubtaskText = ""
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Cancel", fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Button(
+                            onClick = {
+                                if (newSubtaskText.isNotBlank()) {
+                                    subtasks = subtasks + newSubtaskText.trim()
+                                    newSubtaskText = ""
+                                    showSubtaskDialog = false
+                                }
+                            },
+                            enabled = newSubtaskText.isNotBlank(),
+                            shape = RoundedCornerShape(12.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                        ) {
+                            Text("Add", fontWeight = FontWeight.Bold)
                         }
                     }
                 }

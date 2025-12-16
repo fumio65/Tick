@@ -6,20 +6,20 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [Task::class],
-    version = 2,  // CHANGED FROM 1 TO 2
+    entities = [Task::class, Subtask::class], // Added Subtask entity
+    version = 3,  // INCREMENTED VERSION FROM 2 TO 3
     exportSchema = false
 )
 abstract class TaskDatabase : RoomDatabase() {
 
     abstract fun taskDao(): TaskDao
+    abstract fun subtaskDao(): SubtaskDao // Added SubtaskDao
 
     companion object {
         @Volatile
         private var INSTANCE: TaskDatabase? = null
 
         fun getDatabase(context: Context): TaskDatabase {
-            // If instance is not null, return it, otherwise create database instance
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
@@ -33,7 +33,6 @@ abstract class TaskDatabase : RoomDatabase() {
             }
         }
 
-        // Optional: Method to close database (useful for testing)
         fun closeDatabase() {
             INSTANCE?.close()
             INSTANCE = null

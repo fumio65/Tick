@@ -41,8 +41,12 @@
         import kotlinx.coroutines.launch
         import java.text.SimpleDateFormat
         import androidx.compose.foundation.BorderStroke
+        import androidx.compose.runtime.saveable.rememberSaveable
         import java.util.*
         import androidx.lifecycle.viewmodel.compose.viewModel
+        import androidx.compose.foundation.ExperimentalFoundationApi
+        import androidx.compose.foundation.combinedClickable
+        import androidx.compose.ui.window.Dialog
 
         enum class TaskFilter { ALL, COMPLETED, PENDING }
 
@@ -75,7 +79,10 @@
             var currentMonth by remember { mutableStateOf(Calendar.getInstance()) }
             var taskToDelete by remember { mutableStateOf<com.example.tick.data.Task?>(null) }
             var showDeleteDialog by remember { mutableStateOf(false) }
-            var showCalendar by remember { mutableStateOf(true) }
+            var showCalendar by rememberSaveable  { mutableStateOf(true) }
+
+            var taskToPreview by remember { mutableStateOf<com.example.tick.data.Task?>(null) }
+            var showPreviewDialog by remember { mutableStateOf(false) }
 
             val pendingDeletion = remember { mutableStateMapOf<Int, com.example.tick.data.Task>() }
 
@@ -226,6 +233,33 @@
                         }
                     },
                     shape = RoundedCornerShape(24.dp)
+                )
+            }
+
+            /* ---------------------- TASK PREVIEW DIALOG ---------------------- */
+
+            if (showPreviewDialog && taskToPreview != null) {
+                TaskPreviewDialog(
+                    task = taskToPreview!!,
+                    viewModel = viewModel,  // ⬅️ ADD THIS LINE
+                    onDismiss = {
+                        showPreviewDialog = false
+                        taskToPreview = null
+                    },
+                    onEdit = {
+                        showPreviewDialog = false
+                        onEditTaskClick(taskToPreview!!.id)
+                        taskToPreview = null
+                    },
+                    onDelete = {
+                        showPreviewDialog = false
+                        taskToDelete = taskToPreview
+                        taskToPreview = null
+                        showDeleteDialog = true
+                    },
+                    onToggleComplete = {
+                        viewModel.toggleComplete(taskToPreview!!.id)
+                    }
                 )
             }
 
@@ -381,6 +415,10 @@
                         onConfirmDelete = {
                             taskToDelete = it
                             showDeleteDialog = true
+                        },
+                        onPreview = {
+                            taskToPreview = it
+                            showPreviewDialog = true
                         }
                     )
                 }
@@ -570,7 +608,8 @@
             viewModel: TaskViewModel,
             context: android.content.Context,
             onEditTaskClick: (Int) -> Unit,
-            onConfirmDelete: (com.example.tick.data.Task) -> Unit
+            onConfirmDelete: (com.example.tick.data.Task) -> Unit,
+            onPreview: (com.example.tick.data.Task) -> Unit
         ) {
             if (displayed.isEmpty()) {
                 EmptyState(selectedDateNotNull = false)
@@ -598,7 +637,9 @@
                                 context = context,
                                 onEdit = { onEditTaskClick(task.id) },
                                 onToggle = { viewModel.toggleComplete(task.id) },
-                                onDeleteClick = { onConfirmDelete(task) }
+                                isCompleted = false,
+                                onDeleteClick = { onConfirmDelete(task) },
+                                onPreview = { onPreview(task) }
                             )
                         }
                     }
@@ -647,7 +688,8 @@
                                     onEdit = { onEditTaskClick(task.id) },
                                     onToggle = { viewModel.toggleComplete(task.id) },
                                     isCompleted = true,
-                                    onDeleteClick = { onConfirmDelete(task) }
+                                    onDeleteClick = { onConfirmDelete(task) },
+                                    onPreview = { onPreview(task) }
                                 )
                             }
                         }
@@ -866,7 +908,8 @@
             onEdit: () -> Unit,
             onToggle: () -> Unit,
             onDeleteClick: () -> Unit,
-            isCompleted: Boolean = false
+            isCompleted: Boolean = false,
+            onPreview: () -> Unit,
         ) {
             val coroutineScope = rememberCoroutineScope()
             var show by remember { mutableStateOf(true) }
@@ -955,7 +998,8 @@
                         onEdit = onEdit,
                         onToggle = onToggle,
                         onDeleteClick = onDeleteClick,
-                        isCompleted = isCompleted
+                        isCompleted = isCompleted,
+                        onPreview = onPreview
                     )
                 }
             }
@@ -970,7 +1014,8 @@
             onEdit: () -> Unit,
             onToggle: () -> Unit,
             onDeleteClick: () -> Unit,
-            isCompleted: Boolean = false
+            isCompleted: Boolean = false,
+            onPreview: () -> Unit,
         ) {
             // Convert the saved Int color back to a Color object
             val taskColor = task.color?.let { Color(it) } ?: MaterialTheme.colorScheme.primary
@@ -999,10 +1044,14 @@
                 ),
                 border = null
             ) {
+                @OptIn(ExperimentalFoundationApi::class)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onEdit() }
+                        .combinedClickable(
+                            onClick = { onEdit() },
+                            onLongClick = { onPreview() }
+                        )
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -1225,3 +1274,479 @@
 
             return "${timeFormat.format(startCal.time)} - ${timeFormat.format(endCal.time)}"
         }
+
+
+
+        /* ---------------------- TASK PREVIEW DIALOG ---------------------- */
+
+        @Composable
+        private fun TaskPreviewDialog(
+            task: com.example.tick.data.Task,
+            viewModel: TaskViewModel,
+            onDismiss: () -> Unit,
+            onEdit: () -> Unit,
+            onDelete: () -> Unit,
+            onToggleComplete: () -> Unit
+        ) {
+            val taskColor = task.color?.let { Color(it) } ?: MaterialTheme.colorScheme.primary
+
+            // Capture task ID once to prevent recomposition issues
+            val taskId = remember { task.id }
+            val subtasks by viewModel.getSubtasksForTask(taskId).collectAsState()
+
+            Dialog(
+                onDismissRequest = onDismiss
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .wrapContentHeight(),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 6.dp
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp)
+                    ) {
+                        // Header with close button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Task Details",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            IconButton(
+                                onClick = onDismiss,
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Title with status indicator
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                if (task.isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                contentDescription = null,
+                                tint = if (task.isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    task.title,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else TextDecoration.None
+                                )
+                            }
+                        }
+
+                        // Description
+                        if (task.description.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                task.description,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 22.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // Info Cards
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            // Category Card
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = taskColor.copy(alpha = 0.12f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(taskColor.copy(alpha = 0.2f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Label,
+                                            contentDescription = null,
+                                            tint = taskColor,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Column {
+                                        Text(
+                                            "Category",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            task.category,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Time Block or Due Date Card
+                            if (task.isTimeBlocked && task.startTime != null && task.endTime != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.primaryContainer),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Schedule,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        Column {
+                                            Text(
+                                                "Time Block",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Text(
+                                                formatTimeBlock(task.startTime, task.endTime),
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            } else if (task.scheduledDate != null) {
+                                val isOverdue = task.scheduledDate < System.currentTimeMillis() && !task.isCompleted
+                                val cardColor = if (isOverdue)
+                                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                                else
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = cardColor,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (isOverdue) MaterialTheme.colorScheme.errorContainer
+                                                    else MaterialTheme.colorScheme.primaryContainer
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                Icons.Default.CalendarToday,
+                                                contentDescription = null,
+                                                tint = if (isOverdue) MaterialTheme.colorScheme.error
+                                                else MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        Column {
+                                            Text(
+                                                if (isOverdue) "Overdue" else "Due Date",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (isOverdue) MaterialTheme.colorScheme.error
+                                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Text(
+                                                formatDueDate(task.scheduledDate),
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Status Card
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (task.isCompleted)
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                                else
+                                    MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                if (task.isCompleted) MaterialTheme.colorScheme.primaryContainer
+                                                else MaterialTheme.colorScheme.tertiaryContainer
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            if (task.isCompleted) Icons.Default.CheckCircle else Icons.Default.Schedule,
+                                            contentDescription = null,
+                                            tint = if (task.isCompleted)
+                                                MaterialTheme.colorScheme.primary
+                                            else
+                                                MaterialTheme.colorScheme.tertiary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                    Column {
+                                        Text(
+                                            "Status",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            if (task.isCompleted) "Completed" else "Pending",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // ============ SUBTASKS SECTION ============
+                        if (subtasks.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // Subtasks Header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.FormatListBulleted,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        "Subtasks",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+
+                                val completedCount = remember(subtasks) { subtasks.count { it.isCompleted } }
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Text(
+                                        "$completedCount/${subtasks.size}",
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Subtasks List
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    subtasks.forEach { subtask ->
+                                        key(subtask.id) {
+                                            SubtaskItem(
+                                                subtask = subtask,
+                                                onToggle = {
+                                                    viewModel.toggleSubtaskComplete(subtask.id)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // Action Buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            // Toggle Complete Button
+                            OutlinedButton(
+                                onClick = {
+                                    onToggleComplete()
+                                    onDismiss()
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                ),
+                                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                            ) {
+                                Icon(
+                                    if (task.isCompleted) Icons.Default.RadioButtonUnchecked else Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    if (task.isCompleted) "Incomplete" else "Complete",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            // Edit Button
+                            Button(
+                                onClick = onEdit,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    "Edit",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            }
+        }
+
+        // ============ SUBTASK COMPONENTS ============
+
+
+        @Composable
+        private fun SubtaskItem(
+            subtask: com.example.tick.data.Subtask,
+            onToggle: () -> Unit
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable { onToggle() }
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Checkbox
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(
+                            if (subtask.isCompleted)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (subtask.isCompleted) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Completed",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                }
+
+                // Subtask text
+                Text(
+                    text = subtask.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (subtask.isCompleted)
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    else
+                        MaterialTheme.colorScheme.onSurface,
+                    textDecoration = if (subtask.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+//        I noticed the order of task card is alphabetical order from task title
